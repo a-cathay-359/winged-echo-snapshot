@@ -292,6 +292,16 @@
             font-weight: 400;
         }
 
+        .top-time {
+            margin-left: auto;
+            padding-right: 6px;
+            font-size: 13px;
+            color: #b8d0ea;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
         .main-body {
             flex: 1;
             display: flex;
@@ -890,21 +900,57 @@
             flex-shrink: 0;
         }
 
-        .speed-btn {
+        .pause-btn {
             padding: 6px 14px;
             font-size: 13px;
+            font-family: inherit;
             border: 1px solid #c0d4e8;
             background: #ffffff;
             border-radius: 4px;
             cursor: pointer;
             color: #444;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
         }
 
-        .speed-btn.active {
-            background: #2563eb;
-            color: white;
-            border-color: #2563eb;
+        .pause-btn:hover { background: #f1f5f9; }
+
+        .pause-btn.active {
+            background: #e2e8f0;
+            color: #1e293b;
+            font-weight: bold;
         }
+
+        .speed-group {
+            display: inline-flex;
+            border: 1px solid #c0d4e8;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .speed-seg {
+            border: none;
+            background: transparent;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-family: inherit;
+            color: #444;
+            cursor: pointer;
+            line-height: 1.2;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+
+        .speed-seg:hover { background: #f1f5f9; }
+
+        .speed-seg.active {
+            background: #e2e8f0;
+            color: #1e293b;
+            font-weight: bold;
+        }
+
+        .speed-seg.active:hover { background: #dbe3ec; }
 
         .bottom-spacer { flex: 1; }
 
@@ -973,6 +1019,7 @@
                 <span class="money-value" id="money-value">10.00</span>
                 <span class="money-unit">亿</span>
             </div>
+            <div class="top-time" id="time-display">2027年1月1日 00:00</div>
         </div>
 
         <div class="main-body">
@@ -1093,11 +1140,17 @@
         </div>
 
         <div class="bottom-bar">
-            <button class="speed-btn">▶ 继续</button>
-            <button class="speed-btn">x2</button>
-            <button class="speed-btn">x40</button>
-            <button class="speed-btn">x300</button>
-            <button class="speed-btn">x2000</button>
+            <button class="pause-btn" id="pause-btn" onclick="togglePause()">⏸ 暂停</button>
+
+            <div class="speed-group">
+                <button class="speed-seg" data-speed="1"    onclick="setGameSpeed(1)">1X</button>
+                <button class="speed-seg" data-speed="2"    onclick="setGameSpeed(2)">2X</button>
+                <button class="speed-seg" data-speed="30"   onclick="setGameSpeed(30)">30X</button>
+                <button class="speed-seg" data-speed="360"  onclick="setGameSpeed(360)">360X</button>
+                <button class="speed-seg" data-speed="1800" onclick="setGameSpeed(1800)">1800X</button>
+                <button class="speed-seg" data-speed="3600" onclick="setGameSpeed(3600)">3600X</button>
+            </div>
+
             <div class="bottom-spacer"></div>
             <button class="save-btn">💾 存档</button>
             <button class="save-btn">📁 读档</button>
