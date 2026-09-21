@@ -59,9 +59,6 @@ const AIRCRAFT_DATA = {
 };
 
 // ==================== 机场数据 ====================
-// isPlateau:     一般高原机场（海拔 1500m - 2438m）
-// isHighPlateau: 高高原机场（海拔 ≥ 2438m）
-// 非高原机场两个字段都为 false
 
 const AIRPORT_DATA = [
     { iata: "PEK", name: "北京首都", city: "北京", lat: 40.0801, lng: 116.5846,
@@ -86,12 +83,12 @@ const AIRPORT_DATA = [
       throughput: 6649, grade: "4F", distance: 32,   isPlateau: false, isHighPlateau: false },
 
     { iata: "KMG", name: "昆明长水", city: "昆明", lat: 25.1019, lng: 102.9292,
-      throughput: 4969, grade: "4F", distance: 24.5, isPlateau: false, isHighPlateau: false },
+      throughput: 4969, grade: "4F", distance: 24.5, isPlateau: true,  isHighPlateau: false },
 
     { iata: "HRB", name: "哈尔滨太平", city: "哈尔滨", lat: 45.6234, lng: 126.2500,
       throughput: 2465, grade: "4E", distance: 33,   isPlateau: false, isHighPlateau: false },
 
-    { iata: "LXA", name: "拉萨贡嘎", city: "拉萨", lat: 29.2978, lng: 91.1019,
+    { iata: "LXA", name: "拉萨贡嘎", city: "拉萨", lat: 29.2978, lng: 90.9119,
       throughput: 628, grade: "4E", distance: 60,   isPlateau: true,  isHighPlateau: true }
 ];
 
@@ -105,8 +102,8 @@ const AIRPORT_CONSTANTS = {
         "4C": 0.62
     },
     DISTANCE_DIVISOR: 250,
-    PLATEAU_FACTOR: 0.90,       // 一般高原机场
-    HIGH_PLATEAU_FACTOR: 0.85   // 高高原机场
+    PLATEAU_FACTOR: 0.90,
+    HIGH_PLATEAU_FACTOR: 0.85
 };
 
 function calcPassengerIndex(airport) {
