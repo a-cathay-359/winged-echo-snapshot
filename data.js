@@ -59,34 +59,40 @@ const AIRCRAFT_DATA = {
 };
 
 // ==================== 机场数据 ====================
+// isPlateau:     一般高原机场（海拔 1500m - 2438m）
+// isHighPlateau: 高高原机场（海拔 ≥ 2438m）
+// 非高原机场两个字段都为 false
 
 const AIRPORT_DATA = [
     { iata: "PEK", name: "北京首都", city: "北京", lat: 40.0801, lng: 116.5846,
-      throughput: 7076, grade: "4F", distance: 25,   isPlateau: false },
+      throughput: 7076, grade: "4F", distance: 25,   isPlateau: false, isHighPlateau: false },
 
     { iata: "PVG", name: "上海浦东", city: "上海", lat: 31.1443, lng: 121.8083,
-      throughput: 8499, grade: "4F", distance: 30,   isPlateau: false },
+      throughput: 8499, grade: "4F", distance: 30,   isPlateau: false, isHighPlateau: false },
 
     { iata: "CAN", name: "广州白云", city: "广州", lat: 23.3924, lng: 113.2988,
-      throughput: 8359, grade: "4F", distance: 28,   isPlateau: false },
+      throughput: 8359, grade: "4F", distance: 28,   isPlateau: false, isHighPlateau: false },
 
     { iata: "CTU", name: "成都双流", city: "成都", lat: 30.5785, lng: 103.9471,
-      throughput: 3352, grade: "4F", distance: 16,   isPlateau: false },
+      throughput: 3352, grade: "4F", distance: 16,   isPlateau: false, isHighPlateau: false },
 
     { iata: "TFU", name: "成都天府", city: "成都", lat: 30.3125, lng: 104.4417,
-      throughput: 5669, grade: "4F", distance: 50,   isPlateau: false },
+      throughput: 5669, grade: "4F", distance: 50,   isPlateau: false, isHighPlateau: false },
 
     { iata: "URC", name: "乌鲁木齐天山", city: "乌鲁木齐", lat: 43.9071, lng: 87.4742,
-      throughput: 2918, grade: "4F", distance: 16.8, isPlateau: false },
+      throughput: 2918, grade: "4F", distance: 16.8, isPlateau: false, isHighPlateau: false },
 
     { iata: "SZX", name: "深圳宝安", city: "深圳", lat: 22.6393, lng: 113.8106,
-      throughput: 6649, grade: "4F", distance: 32,   isPlateau: false },
+      throughput: 6649, grade: "4F", distance: 32,   isPlateau: false, isHighPlateau: false },
 
     { iata: "KMG", name: "昆明长水", city: "昆明", lat: 25.1019, lng: 102.9292,
-      throughput: 4969, grade: "4F", distance: 24.5, isPlateau: false },
+      throughput: 4969, grade: "4F", distance: 24.5, isPlateau: false, isHighPlateau: false },
 
     { iata: "HRB", name: "哈尔滨太平", city: "哈尔滨", lat: 45.6234, lng: 126.2500,
-      throughput: 2465, grade: "4E", distance: 33,   isPlateau: false }
+      throughput: 2465, grade: "4E", distance: 33,   isPlateau: false, isHighPlateau: false },
+
+    { iata: "LXA", name: "拉萨贡嘎", city: "拉萨", lat: 29.2978, lng: 91.1019,
+      throughput: 628, grade: "4E", distance: 60,   isPlateau: true,  isHighPlateau: true }
 ];
 
 // ==================== 乘客指数算法 ====================
@@ -98,13 +104,23 @@ const AIRPORT_CONSTANTS = {
         "4D": 0.78,
         "4C": 0.62
     },
-    DISTANCE_DIVISOR: 250
+    DISTANCE_DIVISOR: 250,
+    PLATEAU_FACTOR: 0.90,       // 一般高原机场
+    HIGH_PLATEAU_FACTOR: 0.85   // 高高原机场
 };
 
 function calcPassengerIndex(airport) {
     const gradeFactor = AIRPORT_CONSTANTS.GRADE_FACTOR[airport.grade] || 0.62;
     const distanceFactor = Math.max(0, 1 - airport.distance / AIRPORT_CONSTANTS.DISTANCE_DIVISOR);
-    return Math.sqrt(airport.throughput) * gradeFactor * distanceFactor;
+
+    let altitudeFactor = 1.00;
+    if (airport.isHighPlateau) {
+        altitudeFactor = AIRPORT_CONSTANTS.HIGH_PLATEAU_FACTOR;
+    } else if (airport.isPlateau) {
+        altitudeFactor = AIRPORT_CONSTANTS.PLATEAU_FACTOR;
+    }
+
+    return Math.sqrt(airport.throughput) * gradeFactor * distanceFactor * altitudeFactor;
 }
 
 // ==================== 处理后的机场数据 ====================
@@ -121,6 +137,7 @@ const AIRPORT_GCJ = AIRPORT_DATA.map(function (a) {
         grade: a.grade,
         distance: a.distance,
         isPlateau: a.isPlateau,
+        isHighPlateau: a.isHighPlateau,
         passengerIndex: calcPassengerIndex(a)
     };
 });
