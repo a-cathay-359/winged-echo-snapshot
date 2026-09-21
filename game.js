@@ -164,6 +164,12 @@ function confirmRoute(btn) {
 
 // ==================== 机场面板 ====================
 
+function getAltitudeType(airport) {
+    if (airport.isHighPlateau) return '高高原';
+    if (airport.isPlateau) return '高原';
+    return '非高原';
+}
+
 function openAirportPanel(iata) {
     const airport = AIRPORT_GCJ.find(function (a) {
         return a.iata === iata;
@@ -175,7 +181,7 @@ function openAirportPanel(iata) {
 
     const throughputStr = airport.throughput.toLocaleString('en-US');
     const indexStr = airport.passengerIndex.toFixed(1);
-    const altitudeStr = airport.isPlateau ? '高原' : '非高原';
+    const altitudeStr = getAltitudeType(airport);
 
     const body = document.getElementById('airport-panel-body');
 
