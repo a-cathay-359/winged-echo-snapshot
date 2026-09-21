@@ -612,6 +612,7 @@ function enterGame(btn) {
         setTimeout(function () {
             initGameMap();
             if (gameMap) gameMap.invalidateSize();
+            startTimeSystem();
         }, 100);
     }, 200);
 }
@@ -762,6 +763,82 @@ function showToast(text) {
     toastTimer = setTimeout(function () {
         toast.classList.remove('show');
     }, 2000);
+}
+
+// ==================== 时间系统 ====================
+
+const GAME_START_MS = new Date(2027, 0, 1, 0, 0, 0).getTime();
+
+let gameTimeMs = GAME_START_MS;
+let gameSpeed = 1;
+let gamePaused = false;
+
+let lastTickReal = 0;
+let timeLoopId = null;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function formatGameTime(ms) {
+    const d = new Date(ms);
+    return d.getFullYear() + '年' +
+           (d.getMonth() + 1) + '月' +
+           d.getDate() + '日 ' +
+           pad2(d.getHours()) + ':' +
+           pad2(d.getMinutes());
+}
+
+function renderTimeDisplay() {
+    const el = document.getElementById('time-display');
+    if (el) el.textContent = formatGameTime(gameTimeMs);
+}
+
+function timeLoop(now) {
+    if (!lastTickReal) lastTickReal = now;
+    const realDelta = now - lastTickReal;
+    lastTickReal = now;
+
+    if (!gamePaused) {
+        gameTimeMs += realDelta * gameSpeed;
+        renderTimeDisplay();
+    }
+
+    timeLoopId = requestAnimationFrame(timeLoop);
+}
+
+function startTimeSystem() {
+    gameTimeMs = GAME_START_MS;
+    gameSpeed = 1;
+    gamePaused = false;
+    lastTickReal = 0;
+    renderTimeDisplay();
+    updateSpeedButtons();
+    if (timeLoopId) cancelAnimationFrame(timeLoopId);
+    timeLoopId = requestAnimationFrame(timeLoop);
+}
+
+function setGameSpeed(speed) {
+    gameSpeed = speed;
+    if (gamePaused) gamePaused = false;
+    updateSpeedButtons();
+}
+
+function togglePause() {
+    gamePaused = !gamePaused;
+    lastTickReal = 0;
+    updateSpeedButtons();
+}
+
+function updateSpeedButtons() {
+    document.querySelectorAll('.speed-seg[data-speed]').forEach(function (b) {
+        const s = parseInt(b.dataset.speed, 10);
+        b.classList.toggle('active', !gamePaused && s === gameSpeed);
+    });
+
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) {
+        pauseBtn.textContent = gamePaused ? '▶ 开始' : '⏸ 暂停';
+        pauseBtn.classList.toggle('active', gamePaused);
+    }
 }
 
 // ==================== 初始化 ====================
