@@ -92,7 +92,7 @@ const AIRPORT_DATA = [
       throughput: 628, grade: "4E", distance: 60,   isPlateau: true,  isHighPlateau: true }
 ];
 
-// ==================== 乘客指数算法 ====================
+// ==================== 机场指数算法 ====================
 
 const AIRPORT_CONSTANTS = {
     GRADE_FACTOR: {
@@ -101,12 +101,12 @@ const AIRPORT_CONSTANTS = {
         "4D": 0.78,
         "4C": 0.62
     },
-    DISTANCE_DIVISOR: 250,
+    DISTANCE_DIVISOR: 110,
     PLATEAU_FACTOR: 0.90,
     HIGH_PLATEAU_FACTOR: 0.85
 };
 
-function calcPassengerIndex(airport) {
+function calcAirportIndex(airport) {
     const gradeFactor = AIRPORT_CONSTANTS.GRADE_FACTOR[airport.grade] || 0.62;
     const distanceFactor = Math.max(0, 1 - airport.distance / AIRPORT_CONSTANTS.DISTANCE_DIVISOR);
 
@@ -135,7 +135,7 @@ const AIRPORT_GCJ = AIRPORT_DATA.map(function (a) {
         distance: a.distance,
         isPlateau: a.isPlateau,
         isHighPlateau: a.isHighPlateau,
-        passengerIndex: calcPassengerIndex(a)
+        airportIndex: calcAirportIndex(a)
     };
 });
 
