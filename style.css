@@ -291,7 +291,8 @@ body {
 .top-time {
     margin-left: auto;
     padding-right: 6px;
-    font-size: 13px;
+    font-size: 17px;
+    font-weight: bold;
     color: #b8d0ea;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.5px;
