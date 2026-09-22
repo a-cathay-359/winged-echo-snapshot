@@ -180,7 +180,7 @@ function openAirportPanel(iata) {
     if (airport._hotzone) airport._hotzone.closePopup();
 
     const throughputStr = airport.throughput.toLocaleString('en-US');
-    const indexStr = airport.passengerIndex.toFixed(1);
+    const indexStr = airport.airportIndex.toFixed(1);
     const altitudeStr = getAltitudeType(airport);
 
     const body = document.getElementById('airport-panel-body');
@@ -215,7 +215,7 @@ function openAirportPanel(iata) {
         '</div>' +
 
         '<div class="ap-panel-index">' +
-            '<div class="ap-panel-index-label">乘客指数</div>' +
+            '<div class="ap-panel-index-label">机场指数</div>' +
             '<div class="ap-panel-index-value">' + indexStr + '</div>' +
         '</div>';
 
