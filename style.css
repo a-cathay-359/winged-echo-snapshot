@@ -533,6 +533,7 @@ body {
     line-height: 1;
 }
 
+/* ========== 航线弹窗 ========== */
 .route-modal-body {
     position: relative;
     padding: 0;
@@ -544,7 +545,7 @@ body {
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     justify-items: center;
-    padding: 60px 30px 100px;
+    padding: 28px 30px 22px;
     gap: 16px;
 }
 
@@ -571,6 +572,47 @@ body {
     color: #cbd5e1;
     font-weight: 300;
     line-height: 1;
+}
+
+.route-demand {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 30px;
+}
+
+.rd-item {
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.rd-label {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+.rd-value {
+    font-size: 20px;
+    font-weight: bold;
+    color: #1e293b;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+.rd-value .unit {
+    font-size: 11px;
+    font-weight: 400;
+    color: #94a3b8;
+    margin-left: 3px;
+    letter-spacing: 0;
+}
+
+.rd-value.rd-highlight {
+    color: #2b5ce6;
 }
 
 .route-create-btn {
