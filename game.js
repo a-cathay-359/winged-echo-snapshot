@@ -139,7 +139,7 @@ function setAirportSelected(airport, selected) {
     }
 }
 
-function drawRoute(from, to) {
+function drawRoute(from, to, silent) {
     const pts = makeArc(from, to, 60);
 
     const demand = calcRouteDemand(from.iata, to.iata);
@@ -176,7 +176,17 @@ function drawRoute(from, to) {
         openRouteDetail(routeObj);
     });
 
-    showToast(from.iata + ' → ' + to.iata + ' 航线已建立');
+    if (!silent) {
+        showToast(from.iata + ' → ' + to.iata + ' 航线已建立');
+    }
+}
+
+function clearAllRoutes() {
+    routes.forEach(function (r) {
+        if (r.line && gameMap) gameMap.removeLayer(r.line);
+        if (r.hitLine && gameMap) gameMap.removeLayer(r.hitLine);
+    });
+    routes = [];
 }
 
 function closeRouteModal() {
@@ -576,8 +586,6 @@ function initGameMap() {
         maxBoundsViscosity: 0.8
     });
 
-    // 航线点击层专用 pane，z-index 低于 overlayPane(400)，
-    // 保证机场 hotzone 在航线之上，机场附近优先响应机场点击
     gameMap.createPane('routeHitPane');
     gameMap.getPane('routeHitPane').style.zIndex = 390;
 
@@ -673,24 +681,63 @@ function renderAirports(map) {
 
 // ==================== 页面交互 ====================
 
+function bootGame(loadData) {
+    bgAnimating = false;
+
+    document.getElementById('start-page').style.display = 'none';
+    document.getElementById('game-page').classList.add('active');
+
+    if (loadData) {
+        gameState.money = loadData.money;
+        gameState.fleet = loadData.fleet;
+    }
+
+    updateMoneyDisplay();
+    renderFleet();
+
+    setTimeout(function () {
+        initGameMap();
+        if (gameMap) gameMap.invalidateSize();
+
+        if (loadData) {
+            clearAllRoutes();
+            loadData.routes.forEach(function (r) {
+                const from = AIRPORT_GCJ.find(function (a) { return a.iata === r.from; });
+                const to = AIRPORT_GCJ.find(function (a) { return a.iata === r.to; });
+                if (from && to) drawRoute(from, to, true);
+            });
+
+            startTimeSystem(loadData.gameTimeMs, loadData.gameSpeed, loadData.gamePaused);
+            gameMap.setView([35.0, 105.0], 4);
+        } else {
+            startTimeSystem();
+        }
+    }, 100);
+}
+
 function enterGame(btn) {
     if (btn.classList.contains('pressed')) return;
     btn.classList.add('pressed');
 
     setTimeout(function () {
-        bgAnimating = false;
+        btn.classList.remove('pressed');
+        bootGame();
+    }, 200);
+}
 
-        document.getElementById('start-page').style.display = 'none';
-        document.getElementById('game-page').classList.add('active');
+function startPageLoad(btn) {
+    if (btn.classList.contains('pressed')) return;
+    btn.classList.add('pressed');
 
-        updateMoneyDisplay();
-        renderFleet();
+    setTimeout(function () {
+        btn.classList.remove('pressed');
 
-        setTimeout(function () {
-            initGameMap();
-            if (gameMap) gameMap.invalidateSize();
-            startTimeSystem();
-        }, 100);
+        const data = readSave();
+        if (!data) {
+            showStartToast('暂无存档');
+            return;
+        }
+        bootGame(data);
     }, 200);
 }
 
@@ -842,13 +889,111 @@ function showToast(text) {
     }, 2000);
 }
 
+let startToastTimer = null;
+function showStartToast(text) {
+    const toast = document.getElementById('start-toast');
+    if (!toast) return;
+    toast.textContent = text;
+    toast.classList.add('show');
+
+    clearTimeout(startToastTimer);
+    startToastTimer = setTimeout(function () {
+        toast.classList.remove('show');
+    }, 2000);
+}
+
+// ==================== 存档系统 ====================
+
+const SAVE_KEY = 'wingedEcho.save.v1';
+const SAVE_VERSION = 1;
+
+function saveGame() {
+    const data = {
+        version: SAVE_VERSION,
+        savedAt: Date.now(),
+        gameTimeMs: gameTimeMs,
+        money: gameState.money,
+        fleet: gameState.fleet,
+        routes: routes.map(function (r) {
+            return { from: r.from, to: r.to };
+        }),
+        gameSpeed: gameSpeed,
+        gamePaused: gamePaused
+    };
+
+    try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+        showToast('已存档');
+    } catch (e) {
+        showToast('存档失败');
+    }
+}
+
+function hasSave() {
+    return !!localStorage.getItem(SAVE_KEY);
+}
+
+function readSave() {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+
+    try {
+        const data = JSON.parse(raw);
+        if (data.version !== SAVE_VERSION) return null;
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function openLoadConfirm() {
+    if (!hasSave()) {
+        showToast('暂无存档');
+        return;
+    }
+    openOverlay('load-confirm-overlay');
+}
+
+function closeLoadConfirm() {
+    closeOverlay('load-confirm-overlay');
+}
+
+function confirmLoad() {
+    closeLoadConfirm();
+
+    const data = readSave();
+    if (!data) {
+        showToast('存档读取失败');
+        return;
+    }
+
+    if (!gameMap) return;
+
+    gameState.money = data.money;
+    gameState.fleet = data.fleet;
+    updateMoneyDisplay();
+    renderFleet();
+
+    clearAllRoutes();
+    data.routes.forEach(function (r) {
+        const from = AIRPORT_GCJ.find(function (a) { return a.iata === r.from; });
+        const to = AIRPORT_GCJ.find(function (a) { return a.iata === r.to; });
+        if (from && to) drawRoute(from, to, true);
+    });
+
+    startTimeSystem(data.gameTimeMs, data.gameSpeed, data.gamePaused);
+    gameMap.setView([35.0, 105.0], 4);
+
+    showToast('已读档');
+}
+
 // ==================== 时间系统 ====================
 
 const GAME_START_MS = new Date(2027, 0, 1, 0, 0, 0).getTime();
 
 let gameTimeMs = GAME_START_MS;
 let gameSpeed = 1;
-let gamePaused = false;
+let gamePaused = true;
 
 let lastTickReal = 0;
 let timeLoopId = null;
@@ -882,13 +1027,15 @@ function timeLoop(now) {
     timeLoopId = requestAnimationFrame(timeLoop);
 }
 
-function startTimeSystem() {
-    gameTimeMs = GAME_START_MS;
-    gameSpeed = 1;
-    gamePaused = false;
+function startTimeSystem(initMs, initSpeed, initPaused) {
+    gameTimeMs = (initMs !== undefined) ? initMs : GAME_START_MS;
+    gameSpeed = (initSpeed !== undefined) ? initSpeed : 1;
+    gamePaused = (initPaused !== undefined) ? initPaused : true;
+
     lastTickReal = 0;
     renderTimeDisplay();
     updateSpeedButtons();
+
     if (timeLoopId) cancelAnimationFrame(timeLoopId);
     timeLoopId = requestAnimationFrame(timeLoop);
 }
