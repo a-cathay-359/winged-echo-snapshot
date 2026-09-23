@@ -155,7 +155,8 @@ function drawRoute(from, to) {
         color: '#000000',
         weight: 18,
         opacity: 0,
-        interactive: true
+        interactive: true,
+        pane: 'routeHitPane'
     }).addTo(gameMap);
 
     const routeObj = {
@@ -574,6 +575,11 @@ function initGameMap() {
         maxBounds: [[-85, -180], [85, 180]],
         maxBoundsViscosity: 0.8
     });
+
+    // 航线点击层专用 pane，z-index 低于 overlayPane(400)，
+    // 保证机场 hotzone 在航线之上，机场附近优先响应机场点击
+    gameMap.createPane('routeHitPane');
+    gameMap.getPane('routeHitPane').style.zIndex = 390;
 
     L.tileLayer(
         'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
