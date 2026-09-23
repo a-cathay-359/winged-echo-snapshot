@@ -10,6 +10,29 @@
 </head>
 <body>
 
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="we-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="weTL" gradientUnits="userSpaceOnUse"
+                                x1="14.19" y1="13" x2="3.58" y2="23.61">
+                    <stop offset="0%"   stop-color="#7aa7ff" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#5b8def" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="weTR" gradientUnits="userSpaceOnUse"
+                                x1="19" y1="17.81" x2="8.39" y2="28.42">
+                    <stop offset="0%"   stop-color="#7aa7ff" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#5b8def" stop-opacity="0"/>
+                </linearGradient>
+            </defs>
+            <path fill="url(#weTL)" d="M14.72 13.53 L3.65 23.68 L3.51 23.54 L13.66 12.47 Z"/>
+            <path fill="url(#weTR)" d="M19.53 18.34 L8.46 28.49 L8.32 28.35 L18.47 17.28 Z"/>
+            <g transform="translate(19 13) rotate(45) scale(0.85) translate(-12 -10)">
+                <path fill="#ffffff"
+                      d="M12 1 L13.5 9 L21 14 L21 15.5 L13.5 13 L13 18 L15 20 L15 21 L12 20 L9 21 L9 20 L11 18 L10.5 13 L3 15.5 L3 14 L10.5 9 Z"/>
+            </g>
+        </symbol>
+    </svg>
+
     <div id="start-page">
         <div id="bg-map"></div>
         <div class="start-mask"></div>
@@ -40,7 +63,10 @@
 
     <div id="game-page">
         <div class="top-bar">
-            <div class="top-logo"><span class="icon">✈</span>翼掠惊鸿</div>
+            <div class="top-logo">
+                <svg class="top-logo-icon" width="48" height="48"><use href="#we-logo"/></svg>
+                <span>翼掠惊鸿</span>
+            </div>
             <button class="top-edit">修改</button>
             <div class="top-money">
                 <span class="money-icon">¥</span>
