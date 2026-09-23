@@ -92,6 +92,25 @@ const AIRPORT_DATA = [
       throughput: 628, grade: "4E", distance: 60,   isPlateau: true,  isHighPlateau: true }
 ];
 
+// ==================== 城市数据 ====================
+// gdp:            城市GDP（亿元，2025）
+// tourismVisitors: 年游客接待量（亿人次）
+// tourismRevenue:  年旅游总收入（亿元）
+// perCapitaSpend:  旅游人均花费（元）
+// businessIndex:   商务活跃度系数（0-1，构造值）
+
+const CITY_DATA = {
+    "北京":     { gdp: 52073, tourismVisitors: 3.90,  tourismRevenue: 7159, perCapitaSpend: 1836, businessIndex: 1.00 },
+    "上海":     { gdp: 56709, tourismVisitors: 4.16,  tourismRevenue: 5600, perCapitaSpend: 1346, businessIndex: 1.00 },
+    "深圳":     { gdp: 38700, tourismVisitors: 2.00,  tourismRevenue: 3100, perCapitaSpend: 1550, businessIndex: 0.85 },
+    "广州":     { gdp: 32000, tourismVisitors: 2.64,  tourismRevenue: 3768, perCapitaSpend: 1427, businessIndex: 0.80 },
+    "成都":     { gdp: 24764, tourismVisitors: 3.20,  tourismRevenue: 4526, perCapitaSpend: 1414, businessIndex: 0.60 },
+    "昆明":     { gdp:  8600, tourismVisitors: 3.58,  tourismRevenue: 4015, perCapitaSpend: 1121, businessIndex: 0.40 },
+    "哈尔滨":   { gdp:  6200, tourismVisitors: 2.02,  tourismRevenue: 2818, perCapitaSpend: 1395, businessIndex: 0.35 },
+    "乌鲁木齐": { gdp:  4500, tourismVisitors: 1.24,  tourismRevenue: 1300, perCapitaSpend: 1048, businessIndex: 0.30 },
+    "拉萨":     { gdp:  1000, tourismVisitors: 0.505, tourismRevenue:  606, perCapitaSpend: 1200, businessIndex: 0.20 }
+};
+
 // ==================== 机场指数算法 ====================
 
 const AIRPORT_CONSTANTS = {
@@ -118,6 +137,88 @@ function calcAirportIndex(airport) {
     }
 
     return Math.sqrt(airport.throughput) * gradeFactor * distanceFactor * altitudeFactor;
+}
+
+// ==================== 航线人数算法 ====================
+//
+// 旅游客流 = √(A旅 × B旅) × 旅游距离修正 × K旅
+// 商务客流 = √(A商 × B商) × 商务距离修正 × K商
+//
+//   城市旅游吸引力(旅) = 旅游收入 × (人均花费 / 1000)
+//   城市商务吸引力(商) = GDP × 商务指数
+//
+//   旅游距离修正 = max(0.15, 1 - e^(-d / 500))
+//   商务距离修正 = max(0.40, 1 - e^(-d / 900))
+//
+//   K旅 = 0.226, K商 = 0.0783（由京沪航线 = 5000 人次/天 校准得出）
+
+const ROUTE_CONSTANTS = {
+    TOURISM_DECAY: 500,
+    BUSINESS_DECAY: 900,
+    TOURISM_FLOOR: 0.15,
+    BUSINESS_FLOOR: 0.40,
+    K_TOURISM: 0.226,
+    K_BUSINESS: 0.0783
+};
+
+const EARTH_RADIUS_KM = 6371;
+
+function calcDistanceKm(lat1, lng1, lat2, lng2) {
+    const toRad = PI / 180;
+    const dLat = (lat2 - lat1) * toRad;
+    const dLng = (lng2 - lng1) * toRad;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(a));
+}
+
+function calcCityTourismAttraction(city) {
+    return city.tourismRevenue * (city.perCapitaSpend / 1000);
+}
+
+function calcCityBusinessAttraction(city) {
+    return city.gdp * city.businessIndex;
+}
+
+function calcRouteDemand(iataA, iataB) {
+    const a = AIRPORT_GCJ.find(function (x) { return x.iata === iataA; });
+    const b = AIRPORT_GCJ.find(function (x) { return x.iata === iataB; });
+
+    if (!a || !b) return null;
+
+    const cityA = CITY_DATA[a.city];
+    const cityB = CITY_DATA[b.city];
+
+    if (!cityA || !cityB) return null;
+
+    const distance = calcDistanceKm(a.lat, a.lng, b.lat, b.lng);
+
+    const tourismBase = Math.sqrt(
+        calcCityTourismAttraction(cityA) * calcCityTourismAttraction(cityB)
+    );
+    const businessBase = Math.sqrt(
+        calcCityBusinessAttraction(cityA) * calcCityBusinessAttraction(cityB)
+    );
+
+    const tourismDecay = Math.max(
+        ROUTE_CONSTANTS.TOURISM_FLOOR,
+        1 - Math.exp(-distance / ROUTE_CONSTANTS.TOURISM_DECAY)
+    );
+    const businessDecay = Math.max(
+        ROUTE_CONSTANTS.BUSINESS_FLOOR,
+        1 - Math.exp(-distance / ROUTE_CONSTANTS.BUSINESS_DECAY)
+    );
+
+    const tourism = tourismBase * tourismDecay * ROUTE_CONSTANTS.K_TOURISM;
+    const business = businessBase * businessDecay * ROUTE_CONSTANTS.K_BUSINESS;
+
+    return {
+        distance: distance,
+        tourism: tourism,
+        business: business,
+        total: tourism + business
+    };
 }
 
 // ==================== 处理后的机场数据 ====================
