@@ -244,13 +244,14 @@ body {
     font-weight: bold;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 3px;
     white-space: nowrap;
 }
 
 .top-logo-icon {
     display: block;
     flex-shrink: 0;
+    transform: translateY(3px);
 }
 
 .top-edit {
