@@ -48,10 +48,12 @@
 
             <div class="btn-box">
                 <button class="btn start-btn" onclick="enterGame(this)">开始游戏</button>
-                <button class="btn load-btn">读取存档</button>
+                <button class="btn load-btn" onclick="startPageLoad(this)">读取存档</button>
                 <button class="btn about-btn" onclick="openAbout(this)">关于</button>
             </div>
         </div>
+
+        <div id="start-toast" class="start-toast"></div>
     </div>
 
     <div id="about-page">
@@ -191,6 +193,22 @@
                         <div class="modal-body" id="airport-panel-body"></div>
                     </div>
                 </div>
+
+                <div id="load-confirm-overlay" class="overlay" onclick="if(event.target===this) closeLoadConfirm()">
+                    <div class="buy-modal confirm-modal">
+                        <div class="modal-header">
+                            <span>读取存档</span>
+                            <span class="modal-close" onclick="closeLoadConfirm()">✕</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="confirm-text">读取存档将覆盖当前进度，确定继续？</div>
+                            <div class="confirm-actions">
+                                <button class="confirm-btn cancel" onclick="closeLoadConfirm()">取消</button>
+                                <button class="confirm-btn ok" onclick="confirmLoad()">确认读档</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="right-panel">
@@ -230,8 +248,8 @@
             </div>
 
             <div class="bottom-spacer"></div>
-            <button class="save-btn">💾 存档</button>
-            <button class="save-btn">📁 读档</button>
+            <button class="save-btn" onclick="saveGame()">💾 存档</button>
+            <button class="save-btn" onclick="openLoadConfirm()">📁 读档</button>
         </div>
     </div>
 
