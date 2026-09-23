@@ -229,7 +229,7 @@ body {
 #game-page.active { display: flex; }
 
 .top-bar {
-    height: 48px;
+    height: 56px;
     background: #0d2b4e;
     color: white;
     display: flex;
@@ -248,7 +248,10 @@ body {
     white-space: nowrap;
 }
 
-.top-logo .icon { font-size: 18px; }
+.top-logo-icon {
+    display: block;
+    flex-shrink: 0;
+}
 
 .top-edit {
     background: rgba(255,255,255,0.15);
