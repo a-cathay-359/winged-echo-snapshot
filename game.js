@@ -31,6 +31,39 @@ function routeExists(fromIata, toIata) {
     });
 }
 
+// ==================== 航线需求展示 ====================
+
+function buildRouteDemandHTML(demand) {
+    if (!demand) return '';
+
+    return (
+        '<div class="rd-item">' +
+            '<div class="rd-label">航距</div>' +
+            '<div class="rd-value">' + Math.round(demand.distance) +
+                '<span class="unit">km</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="rd-item">' +
+            '<div class="rd-label">日均客流</div>' +
+            '<div class="rd-value rd-highlight">' + Math.round(demand.total) +
+                '<span class="unit">人次</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="rd-item">' +
+            '<div class="rd-label">旅游客流</div>' +
+            '<div class="rd-value">' + Math.round(demand.tourism) +
+                '<span class="unit">人次</span>' +
+            '</div>' +
+        '</div>' +
+        '<div class="rd-item">' +
+            '<div class="rd-label">商务客流</div>' +
+            '<div class="rd-value">' + Math.round(demand.business) +
+                '<span class="unit">人次</span>' +
+            '</div>' +
+        '</div>'
+    );
+}
+
 // ==================== 机场点击交互 ====================
 
 function handleAirportClick(airport) {
@@ -82,6 +115,9 @@ function handleAirportClick(airport) {
         document.getElementById('route-to-name').textContent = airport.name;
         document.getElementById('route-to-iata').textContent = airport.iata;
 
+        const demand = calcRouteDemand(selectedAirport.iata, airport.iata);
+        document.getElementById('route-demand').innerHTML = buildRouteDemandHTML(demand);
+
         openOverlay('route-overlay');
         return;
     }
@@ -106,6 +142,8 @@ function setAirportSelected(airport, selected) {
 function drawRoute(from, to) {
     const pts = makeArc(from, to, 60);
 
+    const demand = calcRouteDemand(from.iata, to.iata);
+
     const line = L.polyline(pts, {
         color: '#2563eb',
         weight: 2,
@@ -113,12 +151,28 @@ function drawRoute(from, to) {
         interactive: false
     }).addTo(gameMap);
 
-    routes.push({
+    const hitLine = L.polyline(pts, {
+        color: '#000000',
+        weight: 18,
+        opacity: 0,
+        interactive: true
+    }).addTo(gameMap);
+
+    const routeObj = {
         from: from.iata,
         to: to.iata,
         fromName: from.name,
         toName: to.name,
-        line: line
+        line: line,
+        hitLine: hitLine,
+        demand: demand
+    };
+
+    routes.push(routeObj);
+
+    hitLine.on('click', function (e) {
+        L.DomEvent.stopPropagation(e);
+        openRouteDetail(routeObj);
     });
 
     showToast(from.iata + ' → ' + to.iata + ' 航线已建立');
@@ -160,6 +214,23 @@ function confirmRoute(btn) {
 
         closeOverlay('route-overlay');
     }, 200);
+}
+
+// ==================== 航线详情 ====================
+
+function openRouteDetail(route) {
+    document.getElementById('rd-from-name').textContent = route.fromName;
+    document.getElementById('rd-from-iata').textContent = route.from;
+    document.getElementById('rd-to-name').textContent = route.toName;
+    document.getElementById('rd-to-iata').textContent = route.to;
+    document.getElementById('route-detail-demand').innerHTML =
+        buildRouteDemandHTML(route.demand);
+
+    openOverlay('route-detail-overlay');
+}
+
+function closeRouteDetail() {
+    closeOverlay('route-detail-overlay');
 }
 
 // ==================== 机场面板 ====================
