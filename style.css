@@ -142,7 +142,8 @@ body {
 .buy-plane-btn-small.pressed,
 .fleet-btn.pressed,
 .route-create-btn.pressed,
-.ap-panel-btn.pressed {
+.ap-panel-btn.pressed,
+.confirm-btn.pressed {
     animation: jellyPress 0.2s ease-out;
 }
 
@@ -158,6 +159,29 @@ body {
     align-items: center;
     justify-content: center;
     transition: transform 0.05s linear;
+}
+
+.start-toast {
+    position: fixed;
+    top: 44px;
+    left: 50%;
+    transform: translate(-50%, -10px);
+    background: rgba(20, 20, 20, 0.88);
+    color: #ffffff;
+    font-size: 13px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 100;
+    white-space: nowrap;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.start-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
 }
 
 /* ========== 关于页 ========== */
@@ -426,6 +450,52 @@ body {
     overflow-y: auto;
     padding: 14px 16px;
 }
+
+/* ========== 读档确认框 ========== */
+.confirm-modal {
+    max-width: 380px;
+    max-height: 220px;
+}
+
+.confirm-text {
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.6;
+    padding: 10px 0 24px;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-btn {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.confirm-btn.cancel {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+.confirm-btn.cancel:hover { background: #f1f5f9; }
+
+.confirm-btn.ok {
+    background: #2b5ce6;
+    color: #ffffff;
+    border: 1px solid #2b5ce6;
+    font-weight: bold;
+}
+
+.confirm-btn.ok:hover { background: #1e4ed4; border-color: #1e4ed4; }
 
 .ap-panel-btn {
     padding: 2px 8px;
