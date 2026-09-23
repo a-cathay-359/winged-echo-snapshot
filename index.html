@@ -104,7 +104,31 @@
                                     <div class="route-ap-iata" id="route-to-iata">—</div>
                                 </div>
                             </div>
+                            <div class="route-demand" id="route-demand"></div>
                             <button class="route-create-btn" onclick="confirmRoute(this)">+ 建立</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="route-detail-overlay" class="overlay" onclick="if(event.target===this) closeRouteDetail()">
+                    <div class="buy-modal">
+                        <div class="modal-header">
+                            <span>航线详情</span>
+                            <span class="modal-close" onclick="closeRouteDetail()">✕</span>
+                        </div>
+                        <div class="modal-body route-modal-body">
+                            <div class="route-info">
+                                <div class="route-ap">
+                                    <div class="route-ap-name" id="rd-from-name">—</div>
+                                    <div class="route-ap-iata" id="rd-from-iata">—</div>
+                                </div>
+                                <div class="route-arrow">→</div>
+                                <div class="route-ap">
+                                    <div class="route-ap-name" id="rd-to-name">—</div>
+                                    <div class="route-ap-iata" id="rd-to-iata">—</div>
+                                </div>
+                            </div>
+                            <div class="route-demand" id="route-detail-demand"></div>
                         </div>
                     </div>
                 </div>
