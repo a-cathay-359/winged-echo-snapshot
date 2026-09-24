@@ -14,6 +14,9 @@ let routePending = null;
 let routes = [];
 let overlayZCounter = 100;
 
+let selectedHomeIata = null;
+let homeDropdownOpen = false;
+
 function updateMoneyDisplay() {
     const yi = gameState.money / 100000000;
     document.getElementById('money-value').textContent = yi.toFixed(2);
@@ -324,11 +327,19 @@ function renderFleet() {
             return d.shortName === plane.type;
         }) || AIRCRAFT_DATA.A320neo;
 
+        const homeAirport = AIRPORT_GCJ.find(function (a) {
+            return a.iata === plane.home;
+        });
+        const homeName = homeAirport ? homeAirport.name : '—';
+
         html +=
             '<div class="fleet-card">' +
                 '<div class="fc-top">' +
                     '<span class="fc-name">' + plane.name + '</span>' +
-                    '<span class="fc-status">闲置</span>' +
+                    '<div class="fc-right">' +
+                        '<span class="fc-status">闲置</span>' +
+                        '<span class="fc-home">' + homeName + '</span>' +
+                    '</div>' +
                 '</div>' +
                 '<div class="fc-info">' +
                     data.displayName + ' · ' + data.seatCapacity + ' 座' +
@@ -825,7 +836,7 @@ function buyPlane(btn) {
         const input = document.getElementById('naming-input');
         input.value = defaultName;
 
-        openOverlay('naming-overlay');
+        openNamingModal();
 
         setTimeout(function () {
             input.focus();
@@ -834,11 +845,98 @@ function buyPlane(btn) {
     }, 200);
 }
 
+function openNamingModal() {
+    selectedHomeIata = null;
+    homeDropdownOpen = false;
+
+    const valEl = document.getElementById('home-select-value');
+    valEl.textContent = '请选择机场';
+    valEl.classList.add('cs-placeholder');
+
+    closeHomeDropdown();
+    updateNamingConfirmState();
+
+    openOverlay('naming-overlay');
+}
+
 function closeNamingModal() {
+    closeHomeDropdown();
     closeOverlay('naming-overlay');
 }
 
+function onNamingOverlayClick(event) {
+    if (homeDropdownOpen) {
+        closeHomeDropdown();
+        return;
+    }
+    if (event.target.id === 'naming-overlay') {
+        closeNamingModal();
+    }
+}
+
+// ==================== 自定义下拉 ====================
+
+function toggleHomeDropdown(event) {
+    if (event) event.stopPropagation();
+
+    if (homeDropdownOpen) {
+        closeHomeDropdown();
+        return;
+    }
+
+    renderHomeList();
+    document.getElementById('home-select-list').classList.add('open');
+    homeDropdownOpen = true;
+}
+
+function renderHomeList() {
+    const list = document.getElementById('home-select-list');
+
+    let html = '';
+    AIRPORT_GCJ.forEach(function (a) {
+        const cls = (a.iata === selectedHomeIata) ? ' cs-item-selected' : '';
+        html +=
+            '<div class="cs-item' + cls + '" onclick="selectHome(\'' + a.iata + '\', event)">' +
+                '<span class="cs-item-name">' + a.name + '</span>' +
+                '<span class="cs-item-iata">' + a.iata + '</span>' +
+            '</div>';
+    });
+    list.innerHTML = html;
+}
+
+function selectHome(iata, event) {
+    if (event) event.stopPropagation();
+
+    const airport = AIRPORT_GCJ.find(function (a) { return a.iata === iata; });
+    if (!airport) return;
+
+    selectedHomeIata = iata;
+
+    const valEl = document.getElementById('home-select-value');
+    valEl.textContent = airport.name + ' ' + airport.iata;
+    valEl.classList.remove('cs-placeholder');
+
+    closeHomeDropdown();
+    updateNamingConfirmState();
+}
+
+function closeHomeDropdown() {
+    const list = document.getElementById('home-select-list');
+    if (list) list.classList.remove('open');
+    homeDropdownOpen = false;
+}
+
+function updateNamingConfirmState() {
+    const btn = document.getElementById('naming-confirm-btn');
+    if (!btn) return;
+    btn.disabled = !selectedHomeIata;
+}
+
+// ==================== 确认购买 ====================
+
 function confirmBuy(btn) {
+    if (btn.disabled) return;
+    if (!selectedHomeIata) return;
     if (btn.classList.contains('pressed')) return;
     btn.classList.add('pressed');
 
@@ -863,7 +961,11 @@ function confirmBuy(btn) {
         }
 
         gameState.money -= price;
-        gameState.fleet.push({ name: finalName, type: type });
+        gameState.fleet.push({
+            name: finalName,
+            type: type,
+            home: selectedHomeIata
+        });
 
         updateMoneyDisplay();
         renderFleet();
@@ -905,7 +1007,7 @@ function showStartToast(text) {
 // ==================== 存档系统 ====================
 
 const SAVE_KEY = 'wingedEcho.save.v1';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 
 function saveGame() {
     const data = {
@@ -963,7 +1065,7 @@ function confirmLoad() {
 
     const data = readSave();
     if (!data) {
-        showToast('存档读取失败');
+        showToast('存档不兼容或读取失败');
         return;
     }
 
