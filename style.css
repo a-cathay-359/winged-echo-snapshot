@@ -422,6 +422,10 @@ body {
     overflow: hidden;
 }
 
+.naming-modal {
+    max-height: 600px;
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -764,12 +768,11 @@ body {
 
 .plane-card .pc-buy:disabled:hover { background: #cbd5e1; }
 
+/* ========== 命名弹窗 ========== */
 .naming-form {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    height: 100%;
-    padding: 20px 8px;
+    padding: 4px 0;
 }
 
 .naming-label {
@@ -777,6 +780,10 @@ body {
     color: #64748b;
     margin-bottom: 10px;
     letter-spacing: 1px;
+}
+
+.naming-label-second {
+    margin-top: 18px;
 }
 
 .naming-input {
@@ -798,6 +805,98 @@ body {
     background: #ffffff;
 }
 
+/* ========== 自定义下拉 ========== */
+.custom-select {
+    position: relative;
+}
+
+.cs-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    color: #1e293b;
+    transition: border-color 0.2s, background 0.2s;
+    user-select: none;
+}
+
+.cs-trigger:hover {
+    border-color: #94a3b8;
+}
+
+.cs-value {
+    letter-spacing: 0.5px;
+}
+
+.cs-placeholder {
+    color: #94a3b8;
+}
+
+.cs-arrow {
+    font-size: 10px;
+    color: #94a3b8;
+    margin-left: 8px;
+}
+
+.cs-list {
+    display: none;
+    margin-top: 6px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.cs-list.open {
+    display: block;
+}
+
+.cs-list::-webkit-scrollbar { width: 6px; }
+.cs-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+.cs-list::-webkit-scrollbar-track { background: transparent; }
+
+.cs-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #1e293b;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.cs-item:hover {
+    background: #f1f5f9;
+}
+
+.cs-item.cs-item-selected {
+    background: #eef2ff;
+    color: #2b5ce6;
+    font-weight: 500;
+}
+
+.cs-item-iata {
+    font-size: 12px;
+    color: #94a3b8;
+    letter-spacing: 2px;
+    font-family: monospace;
+}
+
+.cs-item.cs-item-selected .cs-item-iata {
+    color: #2b5ce6;
+}
+
 .naming-confirm {
     margin-top: 24px;
     width: 100%;
@@ -811,12 +910,20 @@ body {
     letter-spacing: 4px;
     padding-left: 4px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.15s, color 0.15s;
     font-family: inherit;
 }
 
 .naming-confirm:hover { background: #1e4ed4; }
 .naming-confirm:active { background: #1740b8; }
+
+.naming-confirm:disabled {
+    background: #cbd5e1;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.naming-confirm:disabled:hover { background: #cbd5e1; }
 
 .toast {
     position: absolute;
@@ -940,7 +1047,7 @@ body {
 .fleet-card .fc-top {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 6px;
 }
 
@@ -949,6 +1056,15 @@ body {
     font-weight: bold;
     color: #2b5ce6;
     letter-spacing: 0.5px;
+    padding-top: 2px;
+}
+
+.fleet-card .fc-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .fleet-card .fc-status {
@@ -958,6 +1074,12 @@ body {
     padding: 2px 10px;
     border-radius: 10px;
     font-weight: 500;
+}
+
+.fleet-card .fc-home {
+    font-size: 11px;
+    color: #94a3b8;
+    letter-spacing: 0.5px;
 }
 
 .fleet-card .fc-info {
