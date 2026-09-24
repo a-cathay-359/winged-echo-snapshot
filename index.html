@@ -161,8 +161,8 @@
                     </div>
                 </div>
 
-                <div id="naming-overlay" class="overlay" onclick="if(event.target===this) closeNamingModal()">
-                    <div class="buy-modal">
+                <div id="naming-overlay" class="overlay" onclick="onNamingOverlayClick(event)">
+                    <div class="buy-modal naming-modal">
                         <div class="modal-header">
                             <span>确认购买</span>
                             <span class="modal-close" onclick="closeNamingModal()">✕</span>
@@ -178,7 +178,17 @@
                                     spellcheck="false"
                                     autocomplete="off"
                                 >
-                                <button class="naming-confirm" onclick="confirmBuy(this)">确认购买</button>
+
+                                <label class="naming-label naming-label-second">停放机场</label>
+                                <div class="custom-select" id="home-select">
+                                    <div class="cs-trigger" onclick="toggleHomeDropdown(event)">
+                                        <span class="cs-value cs-placeholder" id="home-select-value">请选择机场</span>
+                                        <span class="cs-arrow">▾</span>
+                                    </div>
+                                    <div class="cs-list" id="home-select-list"></div>
+                                </div>
+
+                                <button class="naming-confirm" id="naming-confirm-btn" onclick="confirmBuy(this)" disabled>确认购买</button>
                             </div>
                         </div>
                     </div>
