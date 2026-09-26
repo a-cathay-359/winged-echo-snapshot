@@ -39,29 +39,37 @@ function routeExists(fromIata, toIata) {
 function buildRouteDemandHTML(demand) {
     if (!demand) return '';
 
+    const fare = calcBaseFare(demand.from, demand.to);
+
     return (
-        '<div class="rd-item">' +
-            '<div class="rd-label">航距</div>' +
-            '<div class="rd-value">' + Math.round(demand.distance) +
-                '<span class="unit">km</span>' +
-            '</div>' +
+        '<div class="route-fare">' +
+            '<div class="route-fare-label">基准票价</div>' +
+            '<div class="route-fare-value">¥ ' + fare.toLocaleString('en-US') + '</div>' +
         '</div>' +
-        '<div class="rd-item">' +
-            '<div class="rd-label">日均客流</div>' +
-            '<div class="rd-value rd-highlight">' + Math.round(demand.total) +
-                '<span class="unit">人次</span>' +
+        '<div class="route-demand-grid">' +
+            '<div class="rd-item">' +
+                '<div class="rd-label">航距</div>' +
+                '<div class="rd-value">' + Math.round(demand.distance) +
+                    '<span class="unit">km</span>' +
+                '</div>' +
             '</div>' +
-        '</div>' +
-        '<div class="rd-item">' +
-            '<div class="rd-label">旅游客流</div>' +
-            '<div class="rd-value">' + Math.round(demand.tourism) +
-                '<span class="unit">人次</span>' +
+            '<div class="rd-item">' +
+                '<div class="rd-label">日均客流</div>' +
+                '<div class="rd-value rd-highlight">' + Math.round(demand.total) +
+                    '<span class="unit">人次</span>' +
+                '</div>' +
             '</div>' +
-        '</div>' +
-        '<div class="rd-item">' +
-            '<div class="rd-label">商务客流</div>' +
-            '<div class="rd-value">' + Math.round(demand.business) +
-                '<span class="unit">人次</span>' +
+            '<div class="rd-item">' +
+                '<div class="rd-label">旅游客流</div>' +
+                '<div class="rd-value">' + Math.round(demand.tourism) +
+                    '<span class="unit">人次</span>' +
+                '</div>' +
+            '</div>' +
+            '<div class="rd-item">' +
+                '<div class="rd-label">商务客流</div>' +
+                '<div class="rd-value">' + Math.round(demand.business) +
+                    '<span class="unit">人次</span>' +
+                '</div>' +
             '</div>' +
         '</div>'
     );
@@ -119,6 +127,10 @@ function handleAirportClick(airport) {
         document.getElementById('route-to-iata').textContent = airport.iata;
 
         const demand = calcRouteDemand(selectedAirport.iata, airport.iata);
+        if (demand) {
+            demand.from = selectedAirport.iata;
+            demand.to = airport.iata;
+        }
         document.getElementById('route-demand').innerHTML = buildRouteDemandHTML(demand);
 
         openOverlay('route-overlay');
@@ -146,6 +158,10 @@ function drawRoute(from, to, silent) {
     const pts = makeArc(from, to, 60);
 
     const demand = calcRouteDemand(from.iata, to.iata);
+    if (demand) {
+        demand.from = from.iata;
+        demand.to = to.iata;
+    }
 
     const line = L.polyline(pts, {
         color: '#2563eb',
@@ -237,6 +253,11 @@ function openRouteDetail(route) {
     document.getElementById('rd-from-iata').textContent = route.from;
     document.getElementById('rd-to-name').textContent = route.toName;
     document.getElementById('rd-to-iata').textContent = route.to;
+
+    if (route.demand) {
+        route.demand.from = route.from;
+        route.demand.to = route.to;
+    }
     document.getElementById('route-detail-demand').innerHTML =
         buildRouteDemandHTML(route.demand);
 
