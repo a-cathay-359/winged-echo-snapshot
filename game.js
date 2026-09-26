@@ -445,6 +445,45 @@ function makePlaneIcon() {
     });
 }
 
+// ==================== 机队地图标记 ====================
+
+let planeMarkers = [];
+
+function addPlaneMarker(plane) {
+    if (!gameMap) return;
+
+    const airport = AIRPORT_GCJ.find(function (a) {
+        return a.iata === plane.home;
+    });
+    if (!airport) return;
+
+    const marker = L.marker([airport.lat, airport.lng], {
+        icon: makePlaneIcon(),
+        interactive: false
+    }).addTo(gameMap);
+
+    plane._marker = marker;
+    planeMarkers.push(marker);
+}
+
+function clearAllPlaneMarkers() {
+    planeMarkers.forEach(function (m) {
+        if (gameMap) gameMap.removeLayer(m);
+    });
+    planeMarkers = [];
+
+    gameState.fleet.forEach(function (p) {
+        p._marker = null;
+    });
+}
+
+function rebuildAllPlaneMarkers() {
+    clearAllPlaneMarkers();
+    gameState.fleet.forEach(function (p) {
+        addPlaneMarker(p);
+    });
+}
+
 // ==================== 启动页背景地图 ====================
 
 let bgMap = null;
@@ -723,6 +762,8 @@ function bootGame(loadData) {
         } else {
             startTimeSystem();
         }
+
+        rebuildAllPlaneMarkers();
     }, 100);
 }
 
@@ -961,14 +1002,18 @@ function confirmBuy(btn) {
         }
 
         gameState.money -= price;
-        gameState.fleet.push({
+
+        const newPlane = {
             name: finalName,
             type: type,
             home: selectedHomeIata
-        });
+        };
+        gameState.fleet.push(newPlane);
 
         updateMoneyDisplay();
         renderFleet();
+
+        addPlaneMarker(newPlane);
 
         closeNamingModal();
         closeBuyModal();
@@ -1015,7 +1060,9 @@ function saveGame() {
         savedAt: Date.now(),
         gameTimeMs: gameTimeMs,
         money: gameState.money,
-        fleet: gameState.fleet,
+        fleet: gameState.fleet.map(function (p) {
+            return { name: p.name, type: p.type, home: p.home };
+        }),
         routes: routes.map(function (r) {
             return { from: r.from, to: r.to };
         }),
@@ -1082,6 +1129,8 @@ function confirmLoad() {
         const to = AIRPORT_GCJ.find(function (a) { return a.iata === r.to; });
         if (from && to) drawRoute(from, to, true);
     });
+
+    rebuildAllPlaneMarkers();
 
     startTimeSystem(data.gameTimeMs, data.gameSpeed, data.gamePaused);
     gameMap.setView([35.0, 105.0], 4);
