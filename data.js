@@ -93,11 +93,6 @@ const AIRPORT_DATA = [
 ];
 
 // ==================== 城市数据 ====================
-// gdp:            城市GDP（亿元，2025）
-// tourismVisitors: 年游客接待量（亿人次）
-// tourismRevenue:  年旅游总收入（亿元）
-// perCapitaSpend:  旅游人均花费（元）
-// businessIndex:   商务活跃度系数（0-1，构造值）
 
 const CITY_DATA = {
     "北京":     { gdp: 52073, tourismVisitors: 3.90,  tourismRevenue: 7159, perCapitaSpend: 1836, businessIndex: 1.00 },
@@ -140,17 +135,6 @@ function calcAirportIndex(airport) {
 }
 
 // ==================== 航线人数算法 ====================
-//
-// 旅游客流 = √(A旅 × B旅) × 旅游距离修正 × K旅
-// 商务客流 = √(A商 × B商) × 商务距离修正 × K商
-//
-//   城市旅游吸引力(旅) = 旅游收入 × (人均花费 / 1000)
-//   城市商务吸引力(商) = GDP × 商务指数
-//
-//   旅游距离修正 = max(0.15, 1 - e^(-d / 500))
-//   商务距离修正 = max(0.40, 1 - e^(-d / 900))
-//
-//   K旅 = 0.226, K商 = 0.0783（由京沪航线 = 5000 人次/天 校准得出）
 
 const ROUTE_CONSTANTS = {
     TOURISM_DECAY: 500,
@@ -219,6 +203,50 @@ function calcRouteDemand(iataA, iataB) {
         business: business,
         total: tourism + business
     };
+}
+
+// ==================== 基准票价算法 ====================
+//
+// 依据：民航局 2014 年《关于进一步完善民航国内航空运输价格政策
+// 有关问题的通知》
+//
+//   普通航线：基准票价 = LOG(150, 距离 × 0.6) × 距离 × 1.1
+//   高原航线：基准票价 = LOG(150, 距离 × 0.6) × 距离 × 1.3
+//
+//   LOG(150, x) 是以 150 为底的对数
+//   高原航线判定：起降机场中任一端海拔超过 2000 米
+//   最小计价单位：10 元，四舍五入
+
+const AIRFARE_CONSTANTS = {
+    LOG_BASE: 150,
+    DISTANCE_FACTOR: 0.6,
+    NORMAL_COEFF: 1.1,
+    HIGHLAND_COEFF: 1.3,
+    ROUND_UNIT: 10
+};
+
+function calcBaseFare(iataA, iataB) {
+    const a = AIRPORT_GCJ.find(function (x) { return x.iata === iataA; });
+    const b = AIRPORT_GCJ.find(function (x) { return x.iata === iataB; });
+
+    if (!a || !b) return 0;
+
+    const distance = calcDistanceKm(a.lat, a.lng, b.lat, b.lng);
+
+    const isHighlandRoute =
+        a.isPlateau || a.isHighPlateau ||
+        b.isPlateau || b.isHighPlateau;
+
+    const coeff = isHighlandRoute
+        ? AIRFARE_CONSTANTS.HIGHLAND_COEFF
+        : AIRFARE_CONSTANTS.NORMAL_COEFF;
+
+    const x = distance * AIRFARE_CONSTANTS.DISTANCE_FACTOR;
+    const logVal = Math.log(x) / Math.log(AIRFARE_CONSTANTS.LOG_BASE);
+
+    const fare = logVal * distance * coeff;
+
+    return Math.round(fare / AIRFARE_CONSTANTS.ROUND_UNIT) * AIRFARE_CONSTANTS.ROUND_UNIT;
 }
 
 // ==================== 处理后的机场数据 ====================
