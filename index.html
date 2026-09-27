@@ -14,19 +14,15 @@
         <symbol id="we-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <linearGradient id="weTL" gradientUnits="userSpaceOnUse"
-                                x1="14.19" y1="13" x2="3.58" y2="23.61">
+                                x1="12" y1="18" x2="4" y2="30">
                     <stop offset="0%"   stop-color="#7aa7ff" stop-opacity="0.95"/>
-                    <stop offset="100%" stop-color="#5b8def" stop-opacity="0"/>
-                </linearGradient>
-                <linearGradient id="weTR" gradientUnits="userSpaceOnUse"
-                                x1="19" y1="17.81" x2="8.39" y2="28.42">
-                    <stop offset="0%"   stop-color="#7aa7ff" stop-opacity="0.95"/>
+                    <stop offset="60%"  stop-color="#5b8def" stop-opacity="0.4"/>
                     <stop offset="100%" stop-color="#5b8def" stop-opacity="0"/>
                 </linearGradient>
             </defs>
-            <path fill="url(#weTL)" d="M14.72 13.53 L3.65 23.68 L3.51 23.54 L13.66 12.47 Z"/>
-            <path fill="url(#weTR)" d="M19.53 18.34 L8.46 28.49 L8.32 28.35 L18.47 17.28 Z"/>
-            <g transform="translate(19 13) rotate(45) scale(0.85) translate(-12 -10)">
+            <path fill="url(#weTL)"
+                  d="M 9.8 16.5 Q 3 20, 4 30 Q 6 21, 13.5 17 Z" />
+            <g transform="translate(19 13) rotate(60) scale(0.9) translate(-12 -10)">
                 <path fill="#ffffff"
                       d="M12 1 L13.5 9 L21 14 L21 15.5 L13.5 13 L13 18 L15 20 L15 21 L12 20 L9 21 L9 20 L11 18 L10.5 13 L3 15.5 L3 14 L10.5 9 Z"/>
             </g>
@@ -86,6 +82,9 @@
 
                 <div class="flight-bar">
                     <div class="fb-label">航班动态</div>
+                    <div class="fb-list" id="flight-list">
+                        <div class="fb-empty">暂无航班</div>
+                    </div>
                 </div>
 
                 <div id="toast" class="toast"></div>
@@ -183,7 +182,7 @@
                                 <div class="custom-select" id="home-select">
                                     <div class="cs-trigger" onclick="toggleHomeDropdown(event)">
                                         <span class="cs-value cs-placeholder" id="home-select-value">请选择机场</span>
-                                        <span class="cs-arrow">▾</span>
+                                        <svg class="cs-arrow" viewBox="0 0 10 6"><path d="M0 0 L5 6 L10 0 Z" fill="#94a3b8"/></svg>
                                     </div>
                                     <div class="cs-list" id="home-select-list"></div>
                                 </div>
@@ -201,6 +200,48 @@
                             <span class="modal-close" onclick="closeAirportPanel()">✕</span>
                         </div>
                         <div class="modal-body" id="airport-panel-body"></div>
+                    </div>
+                </div>
+
+                <div id="schedule-overlay" class="overlay" onclick="onScheduleOverlayClick(event)">
+                    <div class="buy-modal schedule-modal">
+                        <div class="modal-header">
+                            <span>时刻表</span>
+                            <span class="modal-close" onclick="closeScheduleModal()">✕</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="plane-info">
+                                <div class="pi-line"><span>飞机</span><b id="sch-plane-name">—</b></div>
+                                <div class="pi-line"><span>机型</span><b id="sch-plane-type">—</b></div>
+                                <div class="pi-line"><span>位置</span><b id="sch-plane-loc">—</b></div>
+                            </div>
+
+                            <label class="form-label">航线</label>
+                            <div class="custom-select">
+                                <div class="cs-trigger" id="sch-route-trigger" onclick="toggleScheduleDropdown(event)">
+                                    <span class="cs-value cs-placeholder" id="sch-route-value">请选择航线</span>
+                                    <svg class="cs-arrow" viewBox="0 0 10 6"><path d="M0 0 L5 6 L10 0 Z" fill="#94a3b8"/></svg>
+                                </div>
+                                <div class="cs-list" id="sch-route-list"></div>
+                            </div>
+
+                            <label class="form-label form-label-second">每天班次（往返次数）</label>
+                            <input class="flights-input" id="sch-flights-input" type="number" min="1" step="1" value="1" oninput="updateScheduleUI()">
+                            <div class="hint" id="sch-hint">请先选择航线</div>
+
+                            <div class="duration-info">
+                                <div class="di-line"><span>单程飞行</span><b id="sch-di-flight">—</b></div>
+                                <div class="di-line"><span>两端周转</span><b id="sch-di-turn">—</b></div>
+                                <div class="di-line total"><span>一趟往返</span><b id="sch-di-round">—</b></div>
+                            </div>
+
+                            <div class="preview-title">时刻预览</div>
+                            <div class="preview-box" id="sch-preview"></div>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn cancel" onclick="closeScheduleModal()">取消</button>
+                            <button class="btn save" id="sch-save-btn" onclick="saveSchedule(this)" disabled>保存</button>
+                        </div>
                     </div>
                 </div>
 
