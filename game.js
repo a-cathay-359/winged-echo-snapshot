@@ -17,6 +17,18 @@ let overlayZCounter = 100;
 let selectedHomeIata = null;
 let homeDropdownOpen = false;
 
+// 时刻表编辑状态
+let editingSchedulePlaneIdx = -1;
+let editingScheduleRouteKey = null;
+let scheduleDropdownOpen = false;
+
+// 航班动态
+const flightEvents = [];
+const FLIGHT_EVENT_MAX = 100;
+
+// 弧线缓存
+const arcCache = {};
+
 function updateMoneyDisplay() {
     const yi = gameState.money / 100000000;
     document.getElementById('money-value').textContent = yi.toFixed(2);
@@ -32,6 +44,30 @@ function routeExists(fromIata, toIata) {
     return routes.some(function (r) {
         return r.from === fromIata && r.to === toIata;
     });
+}
+
+// ==================== 工具函数 ====================
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function fmtMin(totalMin) {
+    const h = Math.floor(totalMin / 60);
+    const m = Math.round(totalMin % 60);
+    if (h === 0) return m + 'min';
+    if (m === 0) return h + 'h';
+    return h + 'h ' + m + 'min';
+}
+
+function fmtTimeOfDay(totalMin) {
+    const h = Math.floor(totalMin / 60) % 24;
+    const m = Math.floor(totalMin % 60);
+    return pad2(h) + ':' + pad2(m);
+}
+
+function formatMoneyShort(n) {
+    if (n >= 100000000) return (n / 100000000).toFixed(2) + '亿';
+    if (n >= 10000) return (n / 10000).toFixed(1) + '万';
+    return String(Math.round(n));
 }
 
 // ==================== 航线需求展示 ====================
@@ -343,7 +379,7 @@ function renderFleet() {
     }
 
     let html = '';
-    gameState.fleet.forEach(function (plane) {
+    gameState.fleet.forEach(function (plane, idx) {
         const data = Object.values(AIRCRAFT_DATA).find(function (d) {
             return d.shortName === plane.type;
         }) || AIRCRAFT_DATA.A320neo;
@@ -353,12 +389,16 @@ function renderFleet() {
         });
         const homeName = homeAirport ? homeAirport.name : '—';
 
+        const hasSchedule = !!plane.schedule;
+        const statusText = hasSchedule ? '运营中' : '闲置';
+        const statusCls = hasSchedule ? 'fc-status active' : 'fc-status';
+
         html +=
             '<div class="fleet-card">' +
                 '<div class="fc-top">' +
                     '<span class="fc-name">' + plane.name + '</span>' +
                     '<div class="fc-right">' +
-                        '<span class="fc-status">闲置</span>' +
+                        '<span class="' + statusCls + '">' + statusText + '</span>' +
                         '<span class="fc-home">' + homeName + '</span>' +
                     '</div>' +
                 '</div>' +
@@ -366,8 +406,8 @@ function renderFleet() {
                     data.displayName + ' · ' + data.seatCapacity + ' 座' +
                 '</div>' +
                 '<div class="fc-actions">' +
-                    '<button class="fleet-btn schedule" onclick="fleetSchedule(this)">时刻表</button>' +
-                    '<button class="fleet-btn sell" onclick="fleetSell(this)">出售</button>' +
+                    '<button class="fleet-btn schedule" data-plane-idx="' + idx + '" onclick="fleetSchedule(this)">时刻表</button>' +
+                    '<button class="fleet-btn sell" data-plane-idx="' + idx + '" onclick="fleetSell(this)">出售</button>' +
                 '</div>' +
             '</div>';
     });
@@ -379,6 +419,8 @@ function fleetSchedule(btn) {
     btn.classList.add('pressed');
     setTimeout(function () {
         btn.classList.remove('pressed');
+        const idx = parseInt(btn.getAttribute('data-plane-idx'), 10);
+        openScheduleModal(idx);
     }, 200);
 }
 
@@ -448,6 +490,39 @@ function makeArc(a, b, segments) {
     return pts;
 }
 
+function getArcPoints(fromIata, toIata) {
+    const key = fromIata + '-' + toIata;
+    if (!arcCache[key]) {
+        const a = AIRPORT_GCJ.find(function (x) { return x.iata === fromIata; });
+        const b = AIRPORT_GCJ.find(function (x) { return x.iata === toIata; });
+        if (!a || !b) return null;
+        arcCache[key] = makeArc(a, b, 60);
+    }
+    return arcCache[key];
+}
+
+function interpolateArc(pts, t) {
+    const last = pts.length - 1;
+    const idx = t * last;
+    const i0 = Math.floor(idx);
+    const i1 = Math.min(i0 + 1, last);
+    const frac = idx - i0;
+    return {
+        lat: pts[i0][0] + (pts[i1][0] - pts[i0][0]) * frac,
+        lng: pts[i0][1] + (pts[i1][1] - pts[i0][1]) * frac
+    };
+}
+
+function interpolateArcAngle(pts, t) {
+    const last = pts.length - 1;
+    const idx = t * last;
+    const i0 = Math.floor(idx);
+    const i1 = Math.min(i0 + 1, last);
+    const dLat = pts[i1][0] - pts[i0][0];
+    const dLng = pts[i1][1] - pts[i0][1];
+    return Math.atan2(-dLat, dLng) * 180 / PI + 90;
+}
+
 // ==================== 飞机图标 ====================
 
 const PLANE_SVG_PATH = "M12 1 L13.5 9 L21 14 L21 15.5 L13.5 13 L13 18 L15 20 L15 21 L12 20 L9 21 L9 20 L11 18 L10.5 13 L3 15.5 L3 14 L10.5 9 Z";
@@ -473,18 +548,21 @@ let planeMarkers = [];
 function addPlaneMarker(plane) {
     if (!gameMap) return;
 
-    const airport = AIRPORT_GCJ.find(function (a) {
+    const home = AIRPORT_GCJ.find(function (a) {
         return a.iata === plane.home;
     });
-    if (!airport) return;
+    if (!home) return;
 
-    const marker = L.marker([airport.lat, airport.lng], {
+    const marker = L.marker([home.lat, home.lng], {
         icon: makePlaneIcon(),
         interactive: false
     }).addTo(gameMap);
 
     plane._marker = marker;
     planeMarkers.push(marker);
+
+    // 立即放到正确位置
+    updateSinglePlane(plane);
 }
 
 function clearAllPlaneMarkers() {
@@ -503,6 +581,267 @@ function rebuildAllPlaneMarkers() {
     gameState.fleet.forEach(function (p) {
         addPlaneMarker(p);
     });
+}
+
+function setPlaneRotation(marker, angle) {
+    const el = marker.getElement();
+    if (!el) return;
+    const rot = el.querySelector('.plane-rot');
+    if (rot) {
+        rot.style.transform = 'rotate(' + angle + 'deg)';
+    }
+}
+
+// ==================== 飞机飞行 ====================
+
+function updateSinglePlane(plane) {
+    if (!plane._marker) return;
+
+    // 没时刻表：停在 home
+    if (!plane.schedule) {
+        const home = AIRPORT_GCJ.find(function (a) { return a.iata === plane.home; });
+        if (home) {
+            plane._marker.setLatLng([home.lat, home.lng]);
+            setPlaneRotation(plane._marker, 0);
+        }
+        return;
+    }
+
+    const sched = plane.schedule;
+    const dur = calcFlightDuration(sched.from, sched.to);
+    if (!dur) return;
+
+    const a = AIRPORT_GCJ.find(function (x) { return x.iata === sched.from; });
+    const b = AIRPORT_GCJ.find(function (x) { return x.iata === sched.to; });
+    if (!a || !b) return;
+
+    // 当天 0 点
+    const d = new Date(gameTimeMs);
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const elapsedMin = (gameTimeMs - dayStart) / 60000;
+
+    const totalDayMin = sched.flightsPerDay * dur.roundMin;
+
+    // 今天飞完 → 停在 A 端
+    if (elapsedMin >= totalDayMin) {
+        plane._marker.setLatLng([a.lat, a.lng]);
+        setPlaneRotation(plane._marker, 0);
+        handleSegAdvance(plane, sched.flightsPerDay * 4 + 100);
+        return;
+    }
+
+    const roundIdx = Math.floor(elapsedMin / dur.roundMin);
+    const roundElapsed = elapsedMin - roundIdx * dur.roundMin;
+
+    let segLocal, lat, lng, angle;
+
+    if (roundElapsed < dur.flightMin) {
+        segLocal = 0;
+        const t = roundElapsed / dur.flightMin;
+        const arc = getArcPoints(sched.from, sched.to);
+        if (arc) {
+            const pt = interpolateArc(arc, t);
+            lat = pt.lat; lng = pt.lng;
+            angle = interpolateArcAngle(arc, t);
+        } else {
+            lat = a.lat; lng = a.lng; angle = 0;
+        }
+    } else if (roundElapsed < dur.flightMin + dur.turnTo) {
+        segLocal = 1;
+        lat = b.lat; lng = b.lng; angle = 0;
+    } else if (roundElapsed < 2 * dur.flightMin + dur.turnTo) {
+        segLocal = 2;
+        const t = (roundElapsed - dur.flightMin - dur.turnTo) / dur.flightMin;
+        const arc = getArcPoints(sched.to, sched.from);
+        if (arc) {
+            const pt = interpolateArc(arc, t);
+            lat = pt.lat; lng = pt.lng;
+            angle = interpolateArcAngle(arc, t);
+        } else {
+            lat = b.lat; lng = b.lng; angle = 0;
+        }
+    } else {
+        segLocal = 3;
+        lat = a.lat; lng = a.lng; angle = 0;
+    }
+
+    plane._marker.setLatLng([lat, lng]);
+    setPlaneRotation(plane._marker, angle);
+
+    const absSeg = roundIdx * 4 + segLocal;
+    handleSegAdvance(plane, absSeg);
+}
+
+function updatePlanesPosition() {
+    if (!gameMap) return;
+    gameState.fleet.forEach(function (plane) {
+        updateSinglePlane(plane);
+    });
+}
+
+// ==================== 段推进 & 事件 ====================
+
+function handleSegAdvance(plane, absSeg) {
+    if (!plane._state) {
+        plane._state = { lastAbsSeg: absSeg };
+        return;
+    }
+
+    const last = plane._state.lastAbsSeg;
+
+    if (absSeg === last) return;
+
+    if (absSeg < last) {
+        // 段号倒退（改时刻表了），重置
+        plane._state.lastAbsSeg = absSeg;
+        return;
+    }
+
+    // 补发中间所有段
+    for (let s = last + 1; s <= absSeg; s++) {
+        emitSegmentStart(plane, s);
+    }
+    plane._state.lastAbsSeg = absSeg;
+}
+
+function emitSegmentStart(plane, absSeg) {
+    const sched = plane.schedule;
+    if (!sched) return;
+
+    const dur = calcFlightDuration(sched.from, sched.to);
+    if (!dur) return;
+
+    // 超出正常段范围（今天飞完的假段号），跳过
+    if (absSeg >= sched.flightsPerDay * 4 + 100) return;
+    if (absSeg >= sched.flightsPerDay * 4) return;
+
+    const local = absSeg % 4;
+    const roundIdx = Math.floor(absSeg / 4);
+
+    // 事件时间
+    const d = new Date(gameTimeMs);
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+    let segOffsetMin;
+    if (local === 0) segOffsetMin = 0;
+    else if (local === 1) segOffsetMin = dur.flightMin;
+    else if (local === 2) segOffsetMin = dur.flightMin + dur.turnTo;
+    else segOffsetMin = 2 * dur.flightMin + dur.turnTo;
+
+    const evtMs = dayStart + (roundIdx * dur.roundMin + segOffsetMin) * 60000;
+    const timeStr = fmtTimeFromMs(evtMs);
+
+    if (local === 0) {
+        // 去程起飞
+        pushFlightEvent({
+            time: timeStr,
+            plane: plane.name,
+            from: sched.from,
+            to: sched.to,
+            type: 'dep'
+        });
+
+    } else if (local === 1) {
+        // 到达 B —— 检查收入（去程方向）
+        const hasRoute = routeExists(sched.from, sched.to);
+        let amount = 0;
+        if (hasRoute) {
+            const fare = calcBaseFare(sched.from, sched.to);
+            amount = 180 * fare;
+            gameState.money += amount;
+            updateMoneyDisplay();
+        }
+        pushFlightEvent({
+            time: timeStr,
+            plane: plane.name,
+            from: sched.from,
+            to: sched.to,
+            type: 'arr',
+            amount: amount
+        });
+
+    } else if (local === 2) {
+        // 回程起飞
+        const reverseExists = routeExists(sched.to, sched.from);
+        pushFlightEvent({
+            time: timeStr,
+            plane: plane.name,
+            from: sched.to,
+            to: sched.from,
+            type: 'dep',
+            empty: !reverseExists
+        });
+
+    } else if (local === 3) {
+        // 到达 A —— 检查收入（回程方向）
+        const reverseExists = routeExists(sched.to, sched.from);
+        let amount = 0;
+        if (reverseExists) {
+            const fare = calcBaseFare(sched.to, sched.from);
+            amount = 180 * fare;
+            gameState.money += amount;
+            updateMoneyDisplay();
+        }
+        pushFlightEvent({
+            time: timeStr,
+            plane: plane.name,
+            from: sched.to,
+            to: sched.from,
+            type: 'arr',
+            amount: amount,
+            empty: !reverseExists
+        });
+    }
+}
+
+function fmtTimeFromMs(ms) {
+    const d = new Date(ms);
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+// ==================== 航班动态栏 ====================
+
+function pushFlightEvent(evt) {
+    flightEvents.push(evt);
+    while (flightEvents.length > FLIGHT_EVENT_MAX) {
+        flightEvents.shift();
+    }
+    renderFlightList();
+}
+
+function renderFlightList() {
+    const list = document.getElementById('flight-list');
+    if (!list) return;
+
+    if (flightEvents.length === 0) {
+        list.innerHTML = '<div class="fb-empty">暂无航班</div>';
+        return;
+    }
+
+    let html = '';
+    flightEvents.forEach(function (e) {
+        const isDep = e.type === 'dep';
+        const tagCls = isDep ? 'fb-dep' : 'fb-arr';
+        const tagText = isDep ? '起飞' : '到达';
+
+        let amountStr = '';
+        if (e.amount && e.amount > 0) {
+            amountStr = '<span class="fb-amount">+¥' + formatMoneyShort(e.amount) + '</span>';
+        } else if (e.empty) {
+            amountStr = '<span class="fb-empty-tag">空飞</span>';
+        }
+
+        html +=
+            '<div class="fb-row">' +
+                '<span class="fb-time">' + e.time + '</span>' +
+                '<span class="fb-plane">' + e.plane + '</span>' +
+                '<span class="fb-route">' + e.from + '→' + e.to + '</span>' +
+                '<span class="fb-tag ' + tagCls + '">' + tagText + '</span>' +
+                amountStr +
+            '</div>';
+    });
+    list.innerHTML = html;
+    list.scrollTop = list.scrollHeight;
 }
 
 // ==================== 启动页背景地图 ====================
@@ -760,11 +1099,21 @@ function bootGame(loadData) {
 
     if (loadData) {
         gameState.money = loadData.money;
-        gameState.fleet = loadData.fleet;
+        gameState.fleet = (loadData.fleet || []).map(function (p) {
+            return {
+                name: p.name,
+                type: p.type,
+                home: p.home,
+                schedule: p.schedule || null,
+                _marker: null,
+                _state: null
+            };
+        });
     }
 
     updateMoneyDisplay();
     renderFleet();
+    renderFlightList();
 
     setTimeout(function () {
         initGameMap();
@@ -772,7 +1121,7 @@ function bootGame(loadData) {
 
         if (loadData) {
             clearAllRoutes();
-            loadData.routes.forEach(function (r) {
+            (loadData.routes || []).forEach(function (r) {
                 const from = AIRPORT_GCJ.find(function (a) { return a.iata === r.from; });
                 const to = AIRPORT_GCJ.find(function (a) { return a.iata === r.to; });
                 if (from && to) drawRoute(from, to, true);
@@ -785,6 +1134,7 @@ function bootGame(loadData) {
         }
 
         rebuildAllPlaneMarkers();
+        updatePlanesPosition();
     }, 100);
 }
 
@@ -936,7 +1286,7 @@ function onNamingOverlayClick(event) {
     }
 }
 
-// ==================== 自定义下拉 ====================
+// ==================== 购机下拉 ====================
 
 function toggleHomeDropdown(event) {
     if (event) event.stopPropagation();
@@ -948,6 +1298,11 @@ function toggleHomeDropdown(event) {
 
     renderHomeList();
     document.getElementById('home-select-list').classList.add('open');
+    document.getElementById('home-select-trigger') &&
+        document.getElementById('home-select-trigger').classList.add('open');
+    // 兼容：没有 trigger id 时，找最近的 .cs-trigger
+    const trigger = document.querySelector('#home-select .cs-trigger');
+    if (trigger) trigger.classList.add('open');
     homeDropdownOpen = true;
 }
 
@@ -985,6 +1340,8 @@ function selectHome(iata, event) {
 function closeHomeDropdown() {
     const list = document.getElementById('home-select-list');
     if (list) list.classList.remove('open');
+    const trigger = document.querySelector('#home-select .cs-trigger');
+    if (trigger) trigger.classList.remove('open');
     homeDropdownOpen = false;
 }
 
@@ -1027,7 +1384,10 @@ function confirmBuy(btn) {
         const newPlane = {
             name: finalName,
             type: type,
-            home: selectedHomeIata
+            home: selectedHomeIata,
+            schedule: null,
+            _marker: null,
+            _state: null
         };
         gameState.fleet.push(newPlane);
 
@@ -1040,6 +1400,335 @@ function confirmBuy(btn) {
         closeBuyModal();
 
         showToast('已购买 ' + finalName);
+    }, 200);
+}
+
+// ==================== 时刻表 ====================
+
+function openScheduleModal(planeIdx) {
+    const plane = gameState.fleet[planeIdx];
+    if (!plane) return;
+
+    if (!isPlaneAtHome(plane)) {
+        showToast('飞机不在基地，无法修改时刻表');
+        return;
+    }
+
+    editingSchedulePlaneIdx = planeIdx;
+
+    // 加载现有 schedule
+    if (plane.schedule) {
+        editingScheduleRouteKey = plane.schedule.from + '-' + plane.schedule.to;
+    } else {
+        editingScheduleRouteKey = null;
+    }
+
+    // 基本信息
+    document.getElementById('sch-plane-name').textContent = plane.name;
+    const data = AIRCRAFT_DATA.A320neo;
+    document.getElementById('sch-plane-type').textContent =
+        data.displayName + ' · ' + data.seatCapacity + ' 座';
+    document.getElementById('sch-plane-loc').textContent = getPlaneLocationText(plane);
+
+    // 下拉初始化
+    scheduleDropdownOpen = false;
+    closeScheduleDropdown();
+
+    const valEl = document.getElementById('sch-route-value');
+    if (editingScheduleRouteKey) {
+        valEl.textContent = scheduleRouteLabel(editingScheduleRouteKey);
+        valEl.classList.remove('cs-placeholder');
+        document.getElementById('sch-flights-input').value =
+            plane.schedule ? plane.schedule.flightsPerDay : 1;
+    } else {
+        valEl.textContent = '请选择航线';
+        valEl.classList.add('cs-placeholder');
+        document.getElementById('sch-flights-input').value = 1;
+    }
+
+    updateScheduleUI();
+    openOverlay('schedule-overlay');
+}
+
+function closeScheduleModal() {
+    closeScheduleDropdown();
+    editingSchedulePlaneIdx = -1;
+    editingScheduleRouteKey = null;
+    closeOverlay('schedule-overlay');
+}
+
+function onScheduleOverlayClick(event) {
+    if (scheduleDropdownOpen) {
+        closeScheduleDropdown();
+        return;
+    }
+    if (event.target.id === 'schedule-overlay') {
+        closeScheduleModal();
+    }
+}
+
+function isPlaneAtHome(plane) {
+    if (!plane.schedule) return true;
+
+    const sched = plane.schedule;
+    const dur = calcFlightDuration(sched.from, sched.to);
+    if (!dur) return true;
+
+    const d = new Date(gameTimeMs);
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const elapsedMin = (gameTimeMs - dayStart) / 60000;
+    const totalDayMin = sched.flightsPerDay * dur.roundMin;
+
+    if (elapsedMin >= totalDayMin) return true;
+
+    const roundElapsed = elapsedMin - Math.floor(elapsedMin / dur.roundMin) * dur.roundMin;
+    return roundElapsed >= 2 * dur.flightMin + dur.turnTo;
+}
+
+function getPlaneLocationText(plane) {
+    if (!plane.schedule) {
+        const home = AIRPORT_GCJ.find(function (a) { return a.iata === plane.home; });
+        return home ? home.name + ' ' + home.iata : '—';
+    }
+
+    const sched = plane.schedule;
+    const dur = calcFlightDuration(sched.from, sched.to);
+    if (!dur) return '—';
+
+    const a = AIRPORT_GCJ.find(function (x) { return x.iata === sched.from; });
+    const b = AIRPORT_GCJ.find(function (x) { return x.iata === sched.to; });
+
+    const d = new Date(gameTimeMs);
+    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const elapsedMin = (gameTimeMs - dayStart) / 60000;
+    const totalDayMin = sched.flightsPerDay * dur.roundMin;
+
+    if (elapsedMin >= totalDayMin) {
+        return a.name + ' ' + a.iata;
+    }
+
+    const roundElapsed = elapsedMin - Math.floor(elapsedMin / dur.roundMin) * dur.roundMin;
+
+    if (roundElapsed < dur.flightMin) {
+        return '执飞 ' + sched.from + ' → ' + sched.to;
+    } else if (roundElapsed < dur.flightMin + dur.turnTo) {
+        return b.name + ' ' + b.iata;
+    } else if (roundElapsed < 2 * dur.flightMin + dur.turnTo) {
+        return '执飞 ' + sched.to + ' → ' + sched.from;
+    } else {
+        return a.name + ' ' + a.iata;
+    }
+}
+
+function toggleScheduleDropdown(event) {
+    if (event) event.stopPropagation();
+
+    if (scheduleDropdownOpen) {
+        closeScheduleDropdown();
+        return;
+    }
+
+    renderScheduleRouteList();
+    document.getElementById('sch-route-list').classList.add('open');
+    document.getElementById('sch-route-trigger').classList.add('open');
+    scheduleDropdownOpen = true;
+}
+
+function renderScheduleRouteList() {
+    const plane = gameState.fleet[editingSchedulePlaneIdx];
+    if (!plane) return;
+
+    const list = document.getElementById('sch-route-list');
+
+    const available = routes.filter(function (r) {
+        return r.from === plane.home;
+    });
+
+    if (available.length === 0) {
+        list.innerHTML = '<div class="cs-empty">暂无可挂航线</div>';
+        return;
+    }
+
+    let html = '';
+    available.forEach(function (r) {
+        const key = r.from + '-' + r.to;
+        const cls = (key === editingScheduleRouteKey) ? ' selected' : '';
+        html +=
+            '<div class="cs-item' + cls + '" data-key="' + key + '">' +
+                scheduleRouteLabel(key) +
+            '</div>';
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll('.cs-item').forEach(function (item) {
+        item.onclick = function (e) {
+            if (e) e.stopPropagation();
+            selectScheduleRoute(this.getAttribute('data-key'), e);
+        };
+    });
+}
+
+function scheduleRouteLabel(key) {
+    const parts = key.split('-');
+    const a = AIRPORT_GCJ.find(function (x) { return x.iata === parts[0]; });
+    const b = AIRPORT_GCJ.find(function (x) { return x.iata === parts[1]; });
+    if (!a || !b) return key;
+    return a.name + ' ' + a.iata + ' → ' + b.name + ' ' + b.iata;
+}
+
+function selectScheduleRoute(key, event) {
+    if (event) event.stopPropagation();
+
+    editingScheduleRouteKey = key;
+
+    const valEl = document.getElementById('sch-route-value');
+    valEl.textContent = scheduleRouteLabel(key);
+    valEl.classList.remove('cs-placeholder');
+
+    document.getElementById('sch-flights-input').value = 1;
+
+    closeScheduleDropdown();
+    updateScheduleUI();
+}
+
+function closeScheduleDropdown() {
+    const list = document.getElementById('sch-route-list');
+    const trigger = document.getElementById('sch-route-trigger');
+    if (list) list.classList.remove('open');
+    if (trigger) trigger.classList.remove('open');
+    scheduleDropdownOpen = false;
+}
+
+function updateScheduleUI() {
+    const input = document.getElementById('sch-flights-input');
+    const hint = document.getElementById('sch-hint');
+    const saveBtn = document.getElementById('sch-save-btn');
+    const previewBox = document.getElementById('sch-preview');
+
+    const flights = parseInt(input.value, 10) || 0;
+
+    if (!editingScheduleRouteKey) {
+        input.classList.remove('error');
+        hint.classList.remove('error');
+        hint.textContent = '请先选择航线';
+        saveBtn.disabled = true;
+        document.getElementById('sch-di-flight').textContent = '—';
+        document.getElementById('sch-di-turn').textContent = '—';
+        document.getElementById('sch-di-round').textContent = '—';
+        previewBox.innerHTML = '<div class="pv-empty">暂无时刻</div>';
+        return;
+    }
+
+    const parts = editingScheduleRouteKey.split('-');
+    const dur = calcFlightDuration(parts[0], parts[1]);
+    if (!dur) return;
+
+    const maxF = Math.floor(24 * 60 / dur.roundMin);
+
+    document.getElementById('sch-di-flight').textContent =
+        fmtMin(dur.flightMin) + ' × 2';
+    document.getElementById('sch-di-turn').textContent =
+        fmtMin(dur.turnFrom) + ' + ' + fmtMin(dur.turnTo);
+    document.getElementById('sch-di-round').textContent =
+        fmtMin(dur.roundMin);
+
+    const totalMin = flights * dur.roundMin;
+    const overLimit = totalMin > 24 * 60;
+
+    if (overLimit) {
+        input.classList.add('error');
+        hint.classList.add('error');
+        hint.textContent = '超出 24 小时（需 ' + fmtMin(totalMin) +
+                          '，最多 ' + maxF + ' 趟）';
+        saveBtn.disabled = true;
+    } else if (flights < 1) {
+        input.classList.add('error');
+        hint.classList.add('error');
+        hint.textContent = '至少 1 趟';
+        saveBtn.disabled = true;
+    } else {
+        input.classList.remove('error');
+        hint.classList.remove('error');
+        hint.textContent = '系统推荐：最多 ' + maxF + ' 趟';
+        saveBtn.disabled = false;
+    }
+
+    renderSchedulePreview(editingScheduleRouteKey, flights);
+}
+
+function renderSchedulePreview(routeKey, flights) {
+    const parts = routeKey.split('-');
+    const from = parts[0];
+    const to = parts[1];
+
+    const dur = calcFlightDuration(from, to);
+    if (!dur) return;
+
+    const hasReverse = routeExists(to, from);
+
+    const box = document.getElementById('sch-preview');
+    let html = '';
+    let t = 0;
+
+    for (let i = 0; i < flights; i++) {
+        // 去程
+        html +=
+            '<div class="pv-row">' +
+                '<span class="pv-time">' + fmtTimeOfDay(t) + '</span>' +
+                '<span class="pv-route">' + from + ' → ' + to +
+                    '<span class="pv-tag paid">载客</span>' +
+                '</span>' +
+            '</div>';
+        t += dur.flightMin + dur.turnTo;
+
+        // 回程
+        const tag = hasReverse
+            ? '<span class="pv-tag paid">载客</span>'
+            : '<span class="pv-tag empty">空飞</span>';
+        html +=
+            '<div class="pv-row">' +
+                '<span class="pv-time">' + fmtTimeOfDay(t) + '</span>' +
+                '<span class="pv-route">' + to + ' → ' + from + tag + '</span>' +
+            '</div>';
+        t += dur.flightMin + dur.turnFrom;
+    }
+
+    if (html === '') html = '<div class="pv-empty">暂无时刻</div>';
+    box.innerHTML = html;
+}
+
+function saveSchedule(btn) {
+    if (btn.disabled) return;
+    if (!editingScheduleRouteKey) return;
+    if (btn.classList.contains('pressed')) return;
+    btn.classList.add('pressed');
+
+    setTimeout(function () {
+        btn.classList.remove('pressed');
+
+        const plane = gameState.fleet[editingSchedulePlaneIdx];
+        if (!plane) return;
+
+        const flights = parseInt(document.getElementById('sch-flights-input').value, 10) || 0;
+        if (flights < 1) return;
+
+        const parts = editingScheduleRouteKey.split('-');
+
+        plane.schedule = {
+            from: parts[0],
+            to: parts[1],
+            flightsPerDay: flights
+        };
+
+        // 重置飞行状态，让飞行系统重新开始计数
+        plane._state = null;
+
+        closeScheduleModal();
+
+        renderFleet();
+        updateSinglePlane(plane);
+
+        showToast('时刻表已保存');
     }, 200);
 }
 
@@ -1082,7 +1771,12 @@ function saveGame() {
         gameTimeMs: gameTimeMs,
         money: gameState.money,
         fleet: gameState.fleet.map(function (p) {
-            return { name: p.name, type: p.type, home: p.home };
+            return {
+                name: p.name,
+                type: p.type,
+                home: p.home,
+                schedule: p.schedule || null
+            };
         }),
         routes: routes.map(function (r) {
             return { from: r.from, to: r.to };
@@ -1140,12 +1834,22 @@ function confirmLoad() {
     if (!gameMap) return;
 
     gameState.money = data.money;
-    gameState.fleet = data.fleet;
+    gameState.fleet = (data.fleet || []).map(function (p) {
+        return {
+            name: p.name,
+            type: p.type,
+            home: p.home,
+            schedule: p.schedule || null,
+            _marker: null,
+            _state: null
+        };
+    });
+
     updateMoneyDisplay();
     renderFleet();
 
     clearAllRoutes();
-    data.routes.forEach(function (r) {
+    (data.routes || []).forEach(function (r) {
         const from = AIRPORT_GCJ.find(function (a) { return a.iata === r.from; });
         const to = AIRPORT_GCJ.find(function (a) { return a.iata === r.to; });
         if (from && to) drawRoute(from, to, true);
@@ -1155,6 +1859,8 @@ function confirmLoad() {
 
     startTimeSystem(data.gameTimeMs, data.gameSpeed, data.gamePaused);
     gameMap.setView([35.0, 105.0], 4);
+
+    updatePlanesPosition();
 
     showToast('已读档');
 }
@@ -1169,8 +1875,6 @@ let gamePaused = true;
 
 let lastTickReal = 0;
 let timeLoopId = null;
-
-function pad2(n) { return String(n).padStart(2, '0'); }
 
 function formatGameTime(ms) {
     const d = new Date(ms);
@@ -1194,6 +1898,7 @@ function timeLoop(now) {
     if (!gamePaused) {
         gameTimeMs += realDelta * gameSpeed;
         renderTimeDisplay();
+        updatePlanesPosition();
     }
 
     timeLoopId = requestAnimationFrame(timeLoop);
@@ -1236,6 +1941,25 @@ function updateSpeedButtons() {
         pauseBtn.classList.toggle('active', gamePaused);
     }
 }
+
+// ==================== 全局点击关闭下拉 ====================
+
+document.addEventListener('click', function (e) {
+    if (homeDropdownOpen) {
+        const trigger = document.querySelector('#home-select .cs-trigger');
+        const list = document.getElementById('home-select-list');
+        if (trigger && trigger.contains(e.target)) return;
+        if (list && list.contains(e.target)) return;
+        closeHomeDropdown();
+    }
+    if (scheduleDropdownOpen) {
+        const trigger = document.getElementById('sch-route-trigger');
+        const list = document.getElementById('sch-route-list');
+        if (trigger && trigger.contains(e.target)) return;
+        if (list && list.contains(e.target)) return;
+        closeScheduleDropdown();
+    }
+});
 
 // ==================== 初始化 ====================
 
