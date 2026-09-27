@@ -135,7 +135,6 @@ body {
 }
 
 .btn.pressed,
-.buy-plane-btn.pressed,
 .pc-buy.pressed,
 .back-btn.pressed,
 .naming-confirm.pressed,
@@ -143,7 +142,8 @@ body {
 .fleet-btn.pressed,
 .route-create-btn.pressed,
 .ap-panel-btn.pressed,
-.confirm-btn.pressed {
+.confirm-btn.pressed,
+.cs-item.pressed {
     animation: jellyPress 0.2s ease-out;
 }
 
@@ -158,7 +158,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.05s linear;
+    transition: transform 0.15s linear;
 }
 
 .start-toast {
@@ -361,6 +361,7 @@ body {
     touch-action: none;
 }
 
+/* ========== 航班动态栏 ========== */
 .flight-bar {
     position: absolute;
     top: 0;
@@ -391,8 +392,76 @@ body {
     padding: 3px 10px;
     border-radius: 0 0 6px 6px;
     white-space: nowrap;
+    z-index: 2;
 }
 
+.fb-list {
+    position: absolute;
+    top: 26px;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.fb-list::-webkit-scrollbar { width: 6px; }
+.fb-list::-webkit-scrollbar-thumb {
+    background: #e0d4a0;
+    border-radius: 3px;
+}
+.fb-list::-webkit-scrollbar-track { background: transparent; }
+
+.fb-empty {
+    color: #a89858;
+    font-size: 12px;
+    text-align: center;
+    padding: 14px 0;
+}
+
+.fb-row {
+    display: flex;
+    gap: 8px;
+    font-size: 11px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    color: #6b5a1a;
+    padding: 2px 0;
+    line-height: 1.5;
+    white-space: nowrap;
+    align-items: center;
+}
+
+.fb-time { color: #8a7a30; flex-shrink: 0; }
+.fb-plane { color: #4a3a00; flex-shrink: 0; font-weight: 600; }
+.fb-route { flex-shrink: 0; }
+
+.fb-tag {
+    font-size: 10px;
+    padding: 0 5px;
+    border-radius: 3px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    flex-shrink: 0;
+    line-height: 1.6;
+}
+.fb-dep { background: #e2e8f0; color: #475569; }
+.fb-arr { background: #dcfce7; color: #16a34a; }
+
+.fb-amount {
+    color: #16a34a;
+    font-weight: 600;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.fb-empty-tag {
+    color: #94a3b8;
+    font-size: 10px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    flex-shrink: 0;
+}
+
+/* ========== 弹窗 ========== */
 .overlay {
     position: absolute;
     top: max(22%, 100px);
@@ -424,6 +493,10 @@ body {
 
 .naming-modal {
     max-height: 600px;
+}
+
+.schedule-modal {
+    max-height: 660px;
 }
 
 .modal-header {
@@ -501,6 +574,7 @@ body {
 
 .confirm-btn.ok:hover { background: #1e4ed4; border-color: #1e4ed4; }
 
+/* ========== 机场面板 ========== */
 .ap-panel-btn {
     padding: 2px 8px;
     background: #2b5ce6;
@@ -739,6 +813,7 @@ body {
 .route-create-btn:hover { background: #1e4ed4; }
 .route-create-btn:active { background: #1740b8; }
 
+/* ========== 购买飞机卡片 ========== */
 .plane-card {
     border: 1px solid #e2e8f0;
     border-radius: 10px;
@@ -855,8 +930,17 @@ body {
     border-color: #94a3b8;
 }
 
+.cs-trigger.open {
+    border-color: #2b5ce6;
+    background: #ffffff;
+}
+
 .cs-value {
     letter-spacing: 0.5px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cs-placeholder {
@@ -864,9 +948,15 @@ body {
 }
 
 .cs-arrow {
-    font-size: 10px;
-    color: #94a3b8;
+    width: 10px;
+    height: 6px;
     margin-left: 8px;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.cs-trigger.open .cs-arrow {
+    transform: rotate(180deg);
 }
 
 .cs-list {
@@ -923,6 +1013,13 @@ body {
     color: #2b5ce6;
 }
 
+.cs-empty {
+    padding: 14px;
+    text-align: center;
+    font-size: 13px;
+    color: #94a3b8;
+}
+
 .naming-confirm {
     margin-top: 24px;
     width: 100%;
@@ -951,6 +1048,215 @@ body {
 
 .naming-confirm:disabled:hover { background: #cbd5e1; }
 
+/* ========== 时刻表弹窗 ========== */
+.plane-info {
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+}
+
+.pi-line {
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.8;
+    display: flex;
+    justify-content: space-between;
+}
+
+.pi-line b {
+    color: #1e293b;
+    font-weight: 600;
+}
+
+.form-label {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+    display: block;
+}
+
+.form-label-second {
+    margin-top: 16px;
+}
+
+.flights-input {
+    width: 100%;
+    padding: 11px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #1e293b;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    letter-spacing: 1px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.flights-input:focus {
+    border-color: #2b5ce6;
+    background: #ffffff;
+}
+
+.flights-input.error {
+    border-color: #dc2626;
+    background: #fef2f2;
+}
+
+.hint {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 6px;
+}
+
+.hint.error {
+    color: #dc2626;
+    font-weight: 500;
+}
+
+.duration-info {
+    margin-top: 16px;
+    background: #f8fafc;
+    border: 1px solid #eef2f7;
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.di-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #64748b;
+    padding: 4px 0;
+}
+
+.di-line b {
+    color: #1e293b;
+    font-weight: 600;
+}
+
+.di-line.total {
+    border-top: 1px solid #e2e8f0;
+    margin-top: 6px;
+    padding-top: 10px;
+    font-weight: 600;
+}
+
+.di-line.total b {
+    color: #2b5ce6;
+}
+
+.preview-title {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 18px;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+
+.preview-box {
+    background: #fffdf2;
+    border: 1px solid #f5e5a0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.preview-box::-webkit-scrollbar { width: 6px; }
+.preview-box::-webkit-scrollbar-thumb {
+    background: #e0d4a0;
+    border-radius: 3px;
+}
+.preview-box::-webkit-scrollbar-track { background: transparent; }
+
+.pv-row {
+    display: flex;
+    font-size: 12px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    color: #6b5a1a;
+    padding: 4px 0;
+    line-height: 1.5;
+}
+
+.pv-time {
+    width: 52px;
+    color: #4a3a00;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.pv-route {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pv-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    flex-shrink: 0;
+}
+
+.pv-tag.paid { background: #dcfce7; color: #16a34a; }
+.pv-tag.empty { background: #f1f5f9; color: #94a3b8; }
+
+.pv-empty {
+    color: #a89858;
+    font-size: 12px;
+    text-align: center;
+    padding: 12px 0;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.modal-actions .btn {
+    padding: 9px 22px;
+    font-size: 13px;
+    font-family: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.modal-actions .btn.cancel {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+.modal-actions .btn.cancel:hover { background: #f1f5f9; }
+
+.modal-actions .btn.save {
+    background: #2b5ce6;
+    color: #ffffff;
+    border: 1px solid #2b5ce6;
+    font-weight: bold;
+}
+
+.modal-actions .btn.save:hover { background: #1e4ed4; border-color: #1e4ed4; }
+
+.modal-actions .btn.save:disabled {
+    background: #cbd5e1;
+    color: #94a3b8;
+    border-color: #cbd5e1;
+    cursor: not-allowed;
+}
+
+/* ========== Toast ========== */
 .toast {
     position: absolute;
     top: 22%;
@@ -974,6 +1280,7 @@ body {
     transform: translate(-50%, 0);
 }
 
+/* ========== 右侧面板 ========== */
 .right-panel {
     width: 32vw;
     min-width: 320px;
@@ -1100,6 +1407,11 @@ body {
     padding: 2px 10px;
     border-radius: 10px;
     font-weight: 500;
+}
+
+.fleet-card .fc-status.active {
+    background: #dbeafe;
+    color: #2b5ce6;
 }
 
 .fleet-card .fc-home {
