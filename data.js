@@ -206,16 +206,6 @@ function calcRouteDemand(iataA, iataB) {
 }
 
 // ==================== 基准票价算法 ====================
-//
-// 依据：民航局 2014 年《关于进一步完善民航国内航空运输价格政策
-// 有关问题的通知》
-//
-//   普通航线：基准票价 = LOG(150, 距离 × 0.6) × 距离 × 1.1
-//   高原航线：基准票价 = LOG(150, 距离 × 0.6) × 距离 × 1.3
-//
-//   LOG(150, x) 是以 150 为底的对数
-//   高原航线判定：起降机场中任一端海拔超过 2000 米
-//   最小计价单位：10 元，四舍五入
 
 const AIRFARE_CONSTANTS = {
     LOG_BASE: 150,
@@ -267,6 +257,37 @@ const AIRPORT_GCJ = AIRPORT_DATA.map(function (a) {
         airportIndex: calcAirportIndex(a)
     };
 });
+
+// ==================== 周转时间 ====================
+// 单端周转：4F 30min / 4E 25min / 其他 20min
+// 一趟往返 = 单程飞行 × 2 + 周转A + 周转B
+
+const GRADE_TURN = { "4F": 30, "4E": 25, "4D": 20, "4C": 20 };
+const CRUISE_SPEED_KMH = 850;
+
+function getTurnTime(grade) {
+    return GRADE_TURN[grade] || 20;
+}
+
+function calcFlightDuration(iataA, iataB) {
+    const a = AIRPORT_GCJ.find(function (x) { return x.iata === iataA; });
+    const b = AIRPORT_GCJ.find(function (x) { return x.iata === iataB; });
+    if (!a || !b) return null;
+
+    const distance = calcDistanceKm(a.lat, a.lng, b.lat, b.lng);
+    const flightMin = Math.round(distance / CRUISE_SPEED_KMH * 60);
+    const turnFrom = getTurnTime(a.grade);
+    const turnTo = getTurnTime(b.grade);
+    const roundMin = flightMin * 2 + turnFrom + turnTo;
+
+    return {
+        distance: distance,
+        flightMin: flightMin,
+        turnFrom: turnFrom,
+        turnTo: turnTo,
+        roundMin: roundMin
+    };
+}
 
 // ==================== 启动页背景航线 ====================
 
