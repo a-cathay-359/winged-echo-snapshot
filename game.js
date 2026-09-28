@@ -1,5 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// 翼掠惊鸿 - 主控（状态 / 工具 / 时间 / 存档 / 调试 / UI 框架）
+// 翼掠惊鸿 - 主控层（状态 / 工具 / 弹窗 / Toast / 时间 / 存档 / 调试 / 启动页 / 初始化）
+
+// ==================== 全局错误捕获 ====================
+
+window.addEventListener('error', function (e) {
+    try {
+        var box = document.getElementById('fatal-error');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'fatal-error';
+            box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;' +
+                'background:#dc2626;color:#fff;font-size:12px;padding:8px 14px;' +
+                'font-family:monospace;word-break:break-all;line-height:1.5;';
+            document.body.appendChild(box);
+        }
+        box.textContent = 'JS 错误: ' + (e.message || '') +
+            ' @ ' + (e.filename || '').split('/').pop() + ':' + (e.lineno || '');
+    } catch (err) {}
+});
 
 // ==================== 游戏状态 ====================
 
@@ -641,4 +659,35 @@ function submitAdminMoney(btn) {
         closeAdminMoney();
         showToast('资金已设置');
     }, 200);
+}
+
+// ==================== 初始化 ====================
+
+function boot() {
+    try {
+        initBackgroundMap();
+    } catch (e) {
+        console.error('背景地图初始化失败:', e);
+    }
+
+    try {
+        initAdminTrigger();
+    } catch (e) {
+        console.error('调试触发器初始化失败:', e);
+    }
+
+    window.addEventListener('resize', function () {
+        try {
+            if (bgMap) bgMap.invalidateSize();
+            if (gameMap) gameMap.invalidateSize();
+        } catch (e) {}
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(boot, 100);
+    });
+} else {
+    setTimeout(boot, 100);
 }
