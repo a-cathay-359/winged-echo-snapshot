@@ -142,8 +142,7 @@ body {
 .fleet-btn.pressed,
 .route-create-btn.pressed,
 .ap-panel-btn.pressed,
-.confirm-btn.pressed,
-.cs-item.pressed {
+.confirm-btn.pressed {
     animation: jellyPress 0.2s ease-out;
 }
 
@@ -295,6 +294,8 @@ body {
     gap: 6px;
     margin-left: 4px;
     white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
 }
 
 .top-money .money-icon {
@@ -461,7 +462,7 @@ body {
     flex-shrink: 0;
 }
 
-/* ========== 弹窗 ========== */
+/* ========== 弹窗通用 ========== */
 .overlay {
     position: absolute;
     top: max(22%, 100px);
@@ -497,6 +498,11 @@ body {
 
 .schedule-modal {
     max-height: 660px;
+}
+
+.admin-modal {
+    max-height: 340px;
+    max-width: 420px;
 }
 
 .modal-header {
@@ -883,6 +889,11 @@ body {
     letter-spacing: 1px;
 }
 
+.naming-label b {
+    color: #1e293b;
+    font-weight: 600;
+}
+
 .naming-label-second {
     margin-top: 18px;
 }
@@ -904,6 +915,11 @@ body {
 .naming-input:focus {
     border-color: #2b5ce6;
     background: #ffffff;
+}
+
+.naming-input.error {
+    border-color: #dc2626;
+    background: #fef2f2;
 }
 
 /* ========== 自定义下拉 ========== */
@@ -1543,6 +1559,7 @@ body {
     gap: 6px;
 }
 
+/* ========== 响应式 ========== */
 @media (max-width: 1366px) {
     .left-panel { width: 14vw; min-width: 130px; }
     .right-panel { width: 30vw; min-width: 280px; }
