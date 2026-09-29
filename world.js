@@ -13,6 +13,7 @@ const arcCache = {};
 
 let selectedHomeIata = null;
 let homeDropdownOpen = false;
+let selectedAircraftType = null;
 
 let editingSchedulePlaneIdx = -1;
 let editingScheduleRouteKey = null;
@@ -97,6 +98,54 @@ function makePlaneIcon() {
         iconSize: [PLANE_ICON_SIZE, PLANE_ICON_SIZE],
         iconAnchor: [PLANE_ICON_SIZE / 2, PLANE_ICON_SIZE / 2]
     });
+}
+
+// ==================== 飞行位置曲线 ====================
+//
+// 输入：单程飞行中已经过的时间（分钟）
+// 输出：{ t, speed }，t 是弧线参数 0~1，speed 是当前 km/h
+//
+// 加速段（0 ~ 15min）：0 → 800 匀加速，位置二次曲线
+// 巡航段：cruiseSpeed 匀速
+// 减速段（末 15min）：800 → 0 匀减速，位置二次曲线
+
+function calcFlightProgress(fromIata, toIata, aircraftType, elapsedMin) {
+    const dur = calcFlightDuration(fromIata, toIata, aircraftType);
+    if (!dur) return { t: 0, speed: 0 };
+
+    const D = dur.distance;
+    const flightMin = dur.flightMin;
+    const accelTime = FLIGHT_CONSTANTS.ACCEL_TIME;
+    const accelDist = FLIGHT_CONSTANTS.ACCEL_DIST;
+    const accelSpeed = FLIGHT_CONSTANTS.ACCEL_SPEED;
+    const cruiseSpeed = dur.cruiseSpeed;
+
+    if (elapsedMin <= 0) return { t: 0, speed: 0 };
+    if (elapsedMin >= flightMin) return { t: 1, speed: 0 };
+
+    let pos, speed;
+
+    if (elapsedMin < accelTime) {
+        // 匀加速：a = accelSpeed / accelTime （每分钟）
+        const a = accelSpeed / accelTime;
+        pos = 0.5 * (a / 60) * elapsedMin * elapsedMin;
+        speed = a * elapsedMin;
+    } else if (elapsedMin < flightMin - accelTime) {
+        // 巡航
+        const cruiseElapsed = elapsedMin - accelTime;
+        pos = accelDist + cruiseElapsed * cruiseSpeed / 60;
+        speed = cruiseSpeed;
+    } else {
+        // 减速
+        const decelElapsed = elapsedMin - (flightMin - accelTime);
+        const a = accelSpeed / accelTime;
+        const decelStartPos = D - accelDist;
+        pos = decelStartPos + decelElapsed * accelSpeed / 60 - 0.5 * (a / 60) * decelElapsed * decelElapsed;
+        speed = accelSpeed - a * decelElapsed;
+    }
+
+    const t = Math.max(0, Math.min(1, pos / D));
+    return { t: t, speed: Math.max(0, speed) };
 }
 
 // ==================== 游戏页地图 ====================
@@ -536,9 +585,7 @@ function renderFleet() {
 
     let html = '';
     gameState.fleet.forEach(function (plane, idx) {
-        const data = Object.values(AIRCRAFT_DATA).find(function (d) {
-            return d.shortName === plane.type;
-        }) || AIRCRAFT_DATA.A320neo;
+        const data = getAircraftData(plane.type);
 
         const homeAirport = AIRPORT_GCJ.find(function (a) {
             return a.iata === plane.home;
@@ -596,20 +643,42 @@ function openBuyModal(btn) {
 
     setTimeout(function () {
         btn.classList.remove('pressed');
-
-        const price = AIRCRAFT_DATA.A320neo.newPrice;
-        const buyBtn = document.getElementById('pc-buy-btn');
-
-        if (gameState.money < price) {
-            buyBtn.disabled = true;
-            buyBtn.textContent = '资金不足';
-        } else {
-            buyBtn.disabled = false;
-            buyBtn.textContent = '购买';
-        }
-
+        renderBuyList();
         openOverlay('buy-overlay');
     }, 200);
+}
+
+function renderBuyList() {
+    const list = document.getElementById('buy-list');
+    let html = '';
+
+    Object.values(AIRCRAFT_DATA).forEach(function (ac) {
+        const canAfford = gameState.money >= ac.newPrice;
+        const priceYi = (ac.newPrice / 100000000).toFixed(1);
+        const mtowTon = Math.round(ac.mtow / 1000);
+
+        html +=
+            '<div class="plane-card">' +
+                '<div class="pc-name">' + ac.name + '</div>' +
+                '<div class="pc-price">¥ ' + priceYi + ' 亿</div>' +
+                '<div class="pc-stats">' +
+                    '<span>🛫 巡航速度：' + ac.cruiseSpeed + ' km/h</span>' +
+                    '<span>📏 航程：' + ac.range + ' km</span>' +
+                    '<span>⚖️ 最大起飞重量：' + mtowTon + ' 吨</span>' +
+                    '<span>📦 最大载重：' + ac.maxPayload + ' 吨</span>' +
+                    '<span>⛽ 燃油容量：' + ac.fuelCapacity + ' 升</span>' +
+                    '<span>🔥 巡航油耗：' + ac.cruiseFuelBurn + ' 升/千米</span>' +
+                    '<span>💺 座位数：' + ac.seatCapacity + ' 座</span>' +
+                '</div>' +
+                '<button class="pc-buy" data-type="' + ac.shortName + '"' +
+                    (canAfford ? '' : ' disabled') +
+                    ' onclick="buyPlane(this)">' +
+                    (canAfford ? '购买' : '资金不足') +
+                '</button>' +
+            '</div>';
+    });
+
+    list.innerHTML = html;
 }
 
 function closeBuyModal() {
@@ -619,9 +688,10 @@ function closeBuyModal() {
 function buyPlane(btn) {
     if (btn.disabled) return;
 
-    const price = AIRCRAFT_DATA.A320neo.newPrice;
+    const type = btn.getAttribute('data-type');
+    const ac = getAircraftData(type);
 
-    if (gameState.money < price) {
+    if (gameState.money < ac.newPrice) {
         showToast('资金不足');
         return;
     }
@@ -632,10 +702,13 @@ function buyPlane(btn) {
     setTimeout(function () {
         btn.classList.remove('pressed');
 
-        const type = AIRCRAFT_DATA.A320neo.shortName;
+        selectedAircraftType = type;
+
         const nextSeq = countFleetByType(type) + 1;
-        const seq = String(nextSeq).padStart(4, '0');
-        const defaultName = type + '-' + seq;
+        const defaultName = type + '-' + String(nextSeq).padStart(4, '0');
+
+        document.getElementById('naming-aircraft-type').textContent =
+            ac.displayName + ' · ' + ac.seatCapacity + ' 座';
 
         const input = document.getElementById('naming-input');
         input.value = defaultName;
@@ -745,21 +818,22 @@ function updateNamingConfirmState() {
 function confirmBuy(btn) {
     if (btn.disabled) return;
     if (!selectedHomeIata) return;
+    if (!selectedAircraftType) return;
     if (btn.classList.contains('pressed')) return;
     btn.classList.add('pressed');
 
     setTimeout(function () {
         btn.classList.remove('pressed');
 
-        const price = AIRCRAFT_DATA.A320neo.newPrice;
+        const ac = getAircraftData(selectedAircraftType);
 
-        if (gameState.money < price) {
+        if (gameState.money < ac.newPrice) {
             showToast('资金不足');
             closeNamingModal();
             return;
         }
 
-        const type = AIRCRAFT_DATA.A320neo.shortName;
+        const type = selectedAircraftType;
         const input = document.getElementById('naming-input');
         let finalName = input.value.trim();
 
@@ -768,7 +842,7 @@ function confirmBuy(btn) {
             finalName = type + '-' + String(nextSeq).padStart(4, '0');
         }
 
-        gameState.money -= price;
+        gameState.money -= ac.newPrice;
 
         const newPlane = {
             name: finalName,
@@ -855,7 +929,7 @@ function updateSinglePlane(plane) {
     }
 
     const sched = plane.schedule;
-    const dur = calcFlightDuration(sched.from, sched.to);
+    const dur = calcFlightDuration(sched.from, sched.to, plane.type);
     if (!dur) return;
 
     const a = AIRPORT_GCJ.find(function (x) { return x.iata === sched.from; });
@@ -882,12 +956,12 @@ function updateSinglePlane(plane) {
 
     if (roundElapsed < dur.flightMin) {
         segLocal = 0;
-        const t = roundElapsed / dur.flightMin;
+        const fp = calcFlightProgress(sched.from, sched.to, plane.type, roundElapsed);
         const arc = getArcPoints(sched.from, sched.to);
-        if (arc) {
-            const pt = interpolateArc(arc, t);
+        if (arc && fp) {
+            const pt = interpolateArc(arc, fp.t);
             lat = pt.lat; lng = pt.lng;
-            angle = interpolateArcAngle(arc, t);
+            angle = interpolateArcAngle(arc, fp.t);
         } else {
             lat = a.lat; lng = a.lng; angle = 0;
         }
@@ -896,12 +970,13 @@ function updateSinglePlane(plane) {
         lat = b.lat; lng = b.lng; angle = 0;
     } else if (roundElapsed < 2 * dur.flightMin + dur.turnTo) {
         segLocal = 2;
-        const t = (roundElapsed - dur.flightMin - dur.turnTo) / dur.flightMin;
+        const returnElapsed = roundElapsed - dur.flightMin - dur.turnTo;
+        const fp = calcFlightProgress(sched.to, sched.from, plane.type, returnElapsed);
         const arc = getArcPoints(sched.to, sched.from);
-        if (arc) {
-            const pt = interpolateArc(arc, t);
+        if (arc && fp) {
+            const pt = interpolateArc(arc, fp.t);
             lat = pt.lat; lng = pt.lng;
-            angle = interpolateArcAngle(arc, t);
+            angle = interpolateArcAngle(arc, fp.t);
         } else {
             lat = b.lat; lng = b.lng; angle = 0;
         }
@@ -951,7 +1026,7 @@ function emitSegmentStart(plane, absSeg) {
     const sched = plane.schedule;
     if (!sched) return;
 
-    const dur = calcFlightDuration(sched.from, sched.to);
+    const dur = calcFlightDuration(sched.from, sched.to, plane.type);
     if (!dur) return;
 
     if (absSeg >= sched.flightsPerDay * 4 + 100) return;
@@ -972,6 +1047,8 @@ function emitSegmentStart(plane, absSeg) {
     const evtMs = dayStart + (roundIdx * dur.roundMin + segOffsetMin) * 60000;
     const timeStr = fmtTimeFromMs(evtMs);
 
+    const ac = getAircraftData(plane.type);
+
     if (local === 0) {
         pushFlightEvent({
             time: timeStr,
@@ -986,7 +1063,7 @@ function emitSegmentStart(plane, absSeg) {
         let amount = 0;
         if (hasRoute) {
             const fare = calcBaseFare(sched.from, sched.to);
-            amount = 180 * fare;
+            amount = ac.seatCapacity * fare;
             gameState.money += amount;
             updateMoneyDisplay();
         }
@@ -1015,7 +1092,7 @@ function emitSegmentStart(plane, absSeg) {
         let amount = 0;
         if (reverseExists) {
             const fare = calcBaseFare(sched.to, sched.from);
-            amount = 180 * fare;
+            amount = ac.seatCapacity * fare;
             gameState.money += amount;
             updateMoneyDisplay();
         }
@@ -1101,7 +1178,7 @@ function openScheduleModal(planeIdx) {
     }
 
     document.getElementById('sch-plane-name').textContent = plane.name;
-    const data = AIRCRAFT_DATA.A320neo;
+    const data = getAircraftData(plane.type);
     document.getElementById('sch-plane-type').textContent =
         data.displayName + ' · ' + data.seatCapacity + ' 座';
     document.getElementById('sch-plane-loc').textContent = getPlaneLocationText(plane);
@@ -1146,7 +1223,7 @@ function isPlaneAtHome(plane) {
     if (!plane.schedule) return true;
 
     const sched = plane.schedule;
-    const dur = calcFlightDuration(sched.from, sched.to);
+    const dur = calcFlightDuration(sched.from, sched.to, plane.type);
     if (!dur) return true;
 
     const d = new Date(gameTimeMs);
@@ -1167,7 +1244,7 @@ function getPlaneLocationText(plane) {
     }
 
     const sched = plane.schedule;
-    const dur = calcFlightDuration(sched.from, sched.to);
+    const dur = calcFlightDuration(sched.from, sched.to, plane.type);
     if (!dur) return '—';
 
     const a = AIRPORT_GCJ.find(function (x) { return x.iata === sched.from; });
@@ -1294,8 +1371,11 @@ function updateScheduleUI() {
         return;
     }
 
+    const plane = gameState.fleet[editingSchedulePlaneIdx];
+    const aircraftType = plane ? plane.type : null;
+
     const parts = editingScheduleRouteKey.split('-');
-    const dur = calcFlightDuration(parts[0], parts[1]);
+    const dur = calcFlightDuration(parts[0], parts[1], aircraftType);
     if (!dur) return;
 
     const maxF = Math.floor(24 * 60 / dur.roundMin);
@@ -1328,15 +1408,15 @@ function updateScheduleUI() {
         saveBtn.disabled = false;
     }
 
-    renderSchedulePreview(editingScheduleRouteKey, flights);
+    renderSchedulePreview(editingScheduleRouteKey, flights, aircraftType);
 }
 
-function renderSchedulePreview(routeKey, flights) {
+function renderSchedulePreview(routeKey, flights, aircraftType) {
     const parts = routeKey.split('-');
     const from = parts[0];
     const to = parts[1];
 
-    const dur = calcFlightDuration(from, to);
+    const dur = calcFlightDuration(from, to, aircraftType);
     if (!dur) return;
 
     const hasReverse = routeExists(to, from);
