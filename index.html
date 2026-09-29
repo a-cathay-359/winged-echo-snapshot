@@ -96,19 +96,7 @@
                             <span class="modal-close" onclick="closeBuyModal()">✕</span>
                         </div>
                         <div class="modal-body">
-                            <div class="plane-card">
-                                <div class="pc-name">空客 A320neo (LEAP-1A)</div>
-                                <div class="pc-price">¥ 4.3 亿</div>
-                                <div class="pc-stats">
-                                    <span>🛫 巡航速度：850 km/h</span>
-                                    <span>📏 航程：6200 km</span>
-                                    <span>⚖️ 最大起飞重量：79 吨</span>
-                                    <span>📦 最大载重：17 吨</span>
-                                    <span>⛽ 燃油容量：26000 升</span>
-                                    <span>🔥 巡航油耗：2.94 升/千米</span>
-                                </div>
-                                <button class="pc-buy" id="pc-buy-btn" onclick="buyPlane(this)">购买</button>
-                            </div>
+                            <div id="buy-list"></div>
                         </div>
                     </div>
                 </div>
@@ -168,12 +156,16 @@
                         </div>
                         <div class="modal-body">
                             <div class="naming-form">
+                                <div class="plane-info" style="margin-bottom:14px;">
+                                    <div class="pi-line"><span>机型</span><b id="naming-aircraft-type">—</b></div>
+                                </div>
+
                                 <label class="naming-label">飞机名称</label>
                                 <input
                                     type="text"
                                     id="naming-input"
                                     class="naming-input"
-                                    value="A320neo-0001"
+                                    value=""
                                     spellcheck="false"
                                     autocomplete="off"
                                 >
