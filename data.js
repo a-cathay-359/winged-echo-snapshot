@@ -55,8 +55,28 @@ const AIRCRAFT_DATA = {
         fuelCapacity: 26000,
         cruiseFuelBurn: 2.94,
         newPrice: 430000000
+    },
+    A350_900: {
+        name: "空客 A350-900 (Trent XWB)",
+        shortName: "A350-900",
+        displayName: "空客 A350-900",
+        seatCapacity: 360,
+        cruiseSpeed: 900,
+        range: 15000,
+        mtow: 268000,
+        maxPayload: 50,
+        fuelCapacity: 138000,
+        cruiseFuelBurn: 6.98,
+        newPrice: 2200000000
     }
 };
+
+function getAircraftData(shortName) {
+    const found = Object.values(AIRCRAFT_DATA).find(function (d) {
+        return d.shortName === shortName;
+    });
+    return found || Object.values(AIRCRAFT_DATA)[0];
+}
 
 // ==================== 机场数据 ====================
 
@@ -258,24 +278,41 @@ const AIRPORT_GCJ = AIRPORT_DATA.map(function (a) {
     };
 });
 
-// ==================== 周转时间 ====================
-// 单端周转：4F 30min / 4E 25min / 其他 20min
-// 一趟往返 = 单程飞行 × 2 + 周转A + 周转B
+// ==================== 飞行时长算法 ====================
+//
+// 加速段（15min）：0 → 800 km/h 匀加速，走 100km
+// 巡航段：cruiseSpeed，剩余距离
+// 减速段（15min）：800 → 0 匀减速，走 100km
+//
+// 单趟飞行时长 = 30min + (距离 - 200) / cruiseSpeed × 60
+// 距离 ≤ 200km 时，物理上飞不起来（无巡航段）
 
 const GRADE_TURN = { "4F": 30, "4E": 25, "4D": 20, "4C": 20 };
-const CRUISE_SPEED_KMH = 850;
+
+const FLIGHT_CONSTANTS = {
+    ACCEL_TIME: 15,      // 分钟
+    ACCEL_DIST: 100,     // 公里
+    ACCEL_SPEED: 800,    // km/h
+    MIN_DISTANCE: 200    // 最小可飞距离
+};
 
 function getTurnTime(grade) {
     return GRADE_TURN[grade] || 20;
 }
 
-function calcFlightDuration(iataA, iataB) {
+function calcFlightDuration(iataA, iataB, aircraftType) {
     const a = AIRPORT_GCJ.find(function (x) { return x.iata === iataA; });
     const b = AIRPORT_GCJ.find(function (x) { return x.iata === iataB; });
     if (!a || !b) return null;
 
     const distance = calcDistanceKm(a.lat, a.lng, b.lat, b.lng);
-    const flightMin = Math.round(distance / CRUISE_SPEED_KMH * 60);
+    const ac = getAircraftData(aircraftType);
+    const cruiseSpeed = ac.cruiseSpeed;
+
+    const cruiseDist = Math.max(0, distance - 2 * FLIGHT_CONSTANTS.ACCEL_DIST);
+    const cruiseTime = cruiseDist / cruiseSpeed * 60;
+    const flightMin = 2 * FLIGHT_CONSTANTS.ACCEL_TIME + cruiseTime;
+
     const turnFrom = getTurnTime(a.grade);
     const turnTo = getTurnTime(b.grade);
     const roundMin = flightMin * 2 + turnFrom + turnTo;
@@ -285,7 +322,9 @@ function calcFlightDuration(iataA, iataB) {
         flightMin: flightMin,
         turnFrom: turnFrom,
         turnTo: turnTo,
-        roundMin: roundMin
+        roundMin: roundMin,
+        cruiseSpeed: cruiseSpeed,
+        cruiseDist: cruiseDist
     };
 }
 
