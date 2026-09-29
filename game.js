@@ -446,7 +446,7 @@ function updateSpeedButtons() {
 // ==================== 存档系统 ====================
 
 const SAVE_KEY = 'wingedEcho.save.v1';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 function saveGame() {
     const data = {
