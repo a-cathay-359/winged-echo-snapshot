@@ -27,6 +27,25 @@ let routePickerFrom = null;
 let routePickerTo = null;
 let routePickerDropdownOpen = null;
 
+// ==================== 工具 ====================
+
+function parseHHMM(str) {
+    if (!str) return null;
+    const m = String(str).trim().match(/^(\d{1,2}):(\d{1,2})$/);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    if (h < 0 || h > 23) return null;
+    if (mi < 0 || mi > 59) return null;
+    return h * 60 + mi;
+}
+
+function minToHHMM(min) {
+    const h = Math.floor(min / 60) % 24;
+    const m = min % 60;
+    return pad2(h) + ':' + pad2(m);
+}
+
 // ==================== 弧线生成 ====================
 
 function makeArc(a, b, segments) {
@@ -105,10 +124,6 @@ function makePlaneIcon() {
 }
 
 // ==================== 飞行位置曲线 ====================
-//
-// 加速段（0 ~ 15min）：0 → 800 匀加速，位置二次曲线
-// 巡航段：cruiseSpeed 匀速
-// 减速段（末 15min）：800 → 0 匀减速，位置二次曲线
 
 function calcFlightProgress(fromIata, toIata, aircraftType, elapsedMin) {
     const dur = calcFlightDuration(fromIata, toIata, aircraftType);
@@ -936,21 +951,33 @@ function updateSinglePlane(plane) {
     const b = AIRPORT_GCJ.find(function (x) { return x.iata === sched.to; });
     if (!a || !b) return;
 
+    const firstMin = sched.firstDepartMin || 0;
+
     const d = new Date(gameTimeMs);
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const elapsedMin = (gameTimeMs - dayStart) / 60000;
 
-    const totalDayMin = sched.flightsPerDay * dur.roundMin;
+    const totalEndMin = firstMin + sched.flightsPerDay * dur.roundMin;
 
-    if (elapsedMin >= totalDayMin) {
+    // 首班前：停在 A 端
+    if (elapsedMin < firstMin) {
+        plane._marker.setLatLng([a.lat, a.lng]);
+        setPlaneRotation(plane._marker, 0);
+        handleSegAdvance(plane, -1);
+        return;
+    }
+
+    // 末班后：停在 A 端
+    if (elapsedMin >= totalEndMin) {
         plane._marker.setLatLng([a.lat, a.lng]);
         setPlaneRotation(plane._marker, 0);
         handleSegAdvance(plane, sched.flightsPerDay * 4 + 100);
         return;
     }
 
-    const roundIdx = Math.floor(elapsedMin / dur.roundMin);
-    const roundElapsed = elapsedMin - roundIdx * dur.roundMin;
+    const localElapsed = elapsedMin - firstMin;
+    const roundIdx = Math.floor(localElapsed / dur.roundMin);
+    const roundElapsed = localElapsed - roundIdx * dur.roundMin;
 
     let segLocal, lat, lng, angle;
 
@@ -1029,8 +1056,11 @@ function emitSegmentStart(plane, absSeg) {
     const dur = calcFlightDuration(sched.from, sched.to, plane.type);
     if (!dur) return;
 
+    if (absSeg < 0) return;
     if (absSeg >= sched.flightsPerDay * 4 + 100) return;
     if (absSeg >= sched.flightsPerDay * 4) return;
+
+    const firstMin = sched.firstDepartMin || 0;
 
     const local = absSeg % 4;
     const roundIdx = Math.floor(absSeg / 4);
@@ -1044,7 +1074,7 @@ function emitSegmentStart(plane, absSeg) {
     else if (local === 2) segOffsetMin = dur.flightMin + dur.turnTo;
     else segOffsetMin = 2 * dur.flightMin + dur.turnTo;
 
-    const evtMs = dayStart + (roundIdx * dur.roundMin + segOffsetMin) * 60000;
+    const evtMs = dayStart + (firstMin + roundIdx * dur.roundMin + segOffsetMin) * 60000;
     const timeStr = fmtTimeFromMs(evtMs);
 
     const ac = getAircraftData(plane.type);
@@ -1198,6 +1228,14 @@ function openScheduleModal(planeIdx) {
         document.getElementById('sch-flights-input').value = 1;
     }
 
+    // 首班时间
+    const firstDepInput = document.getElementById('sch-firstdep-input');
+    if (plane.schedule && plane.schedule.firstDepartMin !== undefined) {
+        firstDepInput.value = minToHHMM(plane.schedule.firstDepartMin);
+    } else {
+        firstDepInput.value = '00:00';
+    }
+
     updateScheduleUI();
     openOverlay('schedule-overlay');
 }
@@ -1226,14 +1264,18 @@ function isPlaneAtHome(plane) {
     const dur = calcFlightDuration(sched.from, sched.to, plane.type);
     if (!dur) return true;
 
+    const firstMin = sched.firstDepartMin || 0;
+
     const d = new Date(gameTimeMs);
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const elapsedMin = (gameTimeMs - dayStart) / 60000;
-    const totalDayMin = sched.flightsPerDay * dur.roundMin;
+    const totalEndMin = firstMin + sched.flightsPerDay * dur.roundMin;
 
-    if (elapsedMin >= totalDayMin) return true;
+    if (elapsedMin < firstMin) return true;
+    if (elapsedMin >= totalEndMin) return true;
 
-    const roundElapsed = elapsedMin - Math.floor(elapsedMin / dur.roundMin) * dur.roundMin;
+    const localElapsed = elapsedMin - firstMin;
+    const roundElapsed = localElapsed - Math.floor(localElapsed / dur.roundMin) * dur.roundMin;
     return roundElapsed >= 2 * dur.flightMin + dur.turnTo;
 }
 
@@ -1250,16 +1292,22 @@ function getPlaneLocationText(plane) {
     const a = AIRPORT_GCJ.find(function (x) { return x.iata === sched.from; });
     const b = AIRPORT_GCJ.find(function (x) { return x.iata === sched.to; });
 
+    const firstMin = sched.firstDepartMin || 0;
+
     const d = new Date(gameTimeMs);
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const elapsedMin = (gameTimeMs - dayStart) / 60000;
-    const totalDayMin = sched.flightsPerDay * dur.roundMin;
+    const totalEndMin = firstMin + sched.flightsPerDay * dur.roundMin;
 
-    if (elapsedMin >= totalDayMin) {
+    if (elapsedMin < firstMin) {
+        return a.name + ' ' + a.iata;
+    }
+    if (elapsedMin >= totalEndMin) {
         return a.name + ' ' + a.iata;
     }
 
-    const roundElapsed = elapsedMin - Math.floor(elapsedMin / dur.roundMin) * dur.roundMin;
+    const localElapsed = elapsedMin - firstMin;
+    const roundElapsed = localElapsed - Math.floor(localElapsed / dur.roundMin) * dur.roundMin;
 
     if (roundElapsed < dur.flightMin) {
         return '执飞 ' + sched.from + ' → ' + sched.to;
@@ -1357,13 +1405,20 @@ function updateScheduleUI() {
     const saveBtn = document.getElementById('sch-save-btn');
     const previewBox = document.getElementById('sch-preview');
 
+    const firstDepInput = document.getElementById('sch-firstdep-input');
+    const firstDepHint = document.getElementById('sch-firstdep-hint');
+
     const flights = parseInt(input.value, 10) || 0;
 
+    // 未选航线
     if (!editingScheduleRouteKey) {
         input.classList.remove('error');
         hint.classList.remove('error');
         hint.textContent = '请先选择航线';
         saveBtn.disabled = true;
+        firstDepInput.classList.remove('error');
+        firstDepHint.classList.remove('error');
+        firstDepHint.textContent = '格式 HH:MM';
         document.getElementById('sch-di-flight').textContent = '—';
         document.getElementById('sch-di-turn').textContent = '—';
         document.getElementById('sch-di-round').textContent = '—';
@@ -1378,8 +1433,7 @@ function updateScheduleUI() {
     const dur = calcFlightDuration(parts[0], parts[1], aircraftType);
     if (!dur) return;
 
-    const maxF = Math.floor(24 * 60 / dur.roundMin);
-
+    // 时长展示
     document.getElementById('sch-di-flight').textContent =
         fmtMin(dur.flightMin) + ' × 2';
     document.getElementById('sch-di-turn').textContent =
@@ -1387,31 +1441,59 @@ function updateScheduleUI() {
     document.getElementById('sch-di-round').textContent =
         fmtMin(dur.roundMin);
 
-    const totalMin = flights * dur.roundMin;
-    const overLimit = totalMin > 24 * 60;
+    // 解析首班时间
+    const firstMin = parseHHMM(firstDepInput.value);
+    const firstDepValid = (firstMin !== null);
 
-    if (overLimit) {
-        input.classList.add('error');
-        hint.classList.add('error');
-        hint.textContent = '超出 24 小时（需 ' + fmtMin(totalMin) +
-                          '，最多 ' + maxF + ' 趟）';
-        saveBtn.disabled = true;
-    } else if (flights < 1) {
+    // 校验班次
+    let flightsValid = true;
+    if (flights < 1) {
+        flightsValid = false;
         input.classList.add('error');
         hint.classList.add('error');
         hint.textContent = '至少 1 趟';
-        saveBtn.disabled = true;
     } else {
         input.classList.remove('error');
         hint.classList.remove('error');
-        hint.textContent = '系统推荐：最多 ' + maxF + ' 趟';
-        saveBtn.disabled = false;
     }
 
-    renderSchedulePreview(editingScheduleRouteKey, flights, aircraftType);
+    // 校验首班时间
+    if (!firstDepValid) {
+        firstDepInput.classList.add('error');
+        firstDepHint.classList.add('error');
+        firstDepHint.textContent = '格式 HH:MM（00:00 ~ 23:59）';
+    } else {
+        firstDepInput.classList.remove('error');
+        firstDepHint.classList.remove('error');
+        firstDepHint.textContent = '格式 HH:MM';
+    }
+
+    // 计算末班落地时间 & 校验
+    if (flightsValid && firstDepValid) {
+        const endMin = firstMin + flights * dur.roundMin;
+        const maxF = Math.floor((1439 - firstMin) / dur.roundMin);
+
+        if (endMin > 1439) {
+            input.classList.add('error');
+            hint.classList.add('error');
+            hint.textContent = '末班落地 ' + minToHHMM(endMin) +
+                '，超出当天。最多 ' + maxF + ' 趟，或提前首班';
+            saveBtn.disabled = true;
+        } else {
+            hint.classList.remove('error');
+            hint.textContent = '系统推荐：最多 ' + maxF + ' 趟';
+            saveBtn.disabled = false;
+        }
+
+        renderSchedulePreview(editingScheduleRouteKey, flights, aircraftType, firstMin);
+
+    } else {
+        saveBtn.disabled = true;
+        previewBox.innerHTML = '<div class="pv-empty">暂无时刻</div>';
+    }
 }
 
-function renderSchedulePreview(routeKey, flights, aircraftType) {
+function renderSchedulePreview(routeKey, flights, aircraftType, firstMin) {
     const parts = routeKey.split('-');
     const from = parts[0];
     const to = parts[1];
@@ -1423,7 +1505,7 @@ function renderSchedulePreview(routeKey, flights, aircraftType) {
 
     const box = document.getElementById('sch-preview');
     let html = '';
-    let t = 0;
+    let t = firstMin || 0;
 
     for (let i = 0; i < flights; i++) {
         html +=
@@ -1465,12 +1547,16 @@ function saveSchedule(btn) {
         const flights = parseInt(document.getElementById('sch-flights-input').value, 10) || 0;
         if (flights < 1) return;
 
+        const firstMin = parseHHMM(document.getElementById('sch-firstdep-input').value);
+        if (firstMin === null) return;
+
         const parts = editingScheduleRouteKey.split('-');
 
         plane.schedule = {
             from: parts[0],
             to: parts[1],
-            flightsPerDay: flights
+            flightsPerDay: flights,
+            firstDepartMin: firstMin
         };
 
         plane._state = null;
