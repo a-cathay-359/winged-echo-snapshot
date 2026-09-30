@@ -283,6 +283,10 @@
                             <input class="flights-input" id="sch-flights-input" type="number" min="1" step="1" value="1" oninput="updateScheduleUI()">
                             <div class="hint" id="sch-hint">请先选择航线</div>
 
+                            <label class="form-label form-label-second">首班起飞时间</label>
+                            <input class="flights-input" id="sch-firstdep-input" type="text" maxlength="5" placeholder="00:00" value="00:00" oninput="updateScheduleUI()">
+                            <div class="hint" id="sch-firstdep-hint">格式 HH:MM</div>
+
                             <div class="duration-info">
                                 <div class="di-line"><span>单程飞行</span><b id="sch-di-flight">—</b></div>
                                 <div class="di-line"><span>两端周转</span><b id="sch-di-turn">—</b></div>
