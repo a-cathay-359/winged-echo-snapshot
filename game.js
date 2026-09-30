@@ -284,6 +284,8 @@ function bootGame(loadData) {
     updateMoneyDisplay();
     renderFleet();
     renderFlightList();
+    renderRouteTab();
+    renderAirportTab();
 
     setTimeout(function () {
         initGameMap();
@@ -305,6 +307,7 @@ function bootGame(loadData) {
 
         rebuildAllPlaneMarkers();
         updatePlanesPosition();
+        renderRouteTab();
     }, 100);
 }
 
@@ -545,6 +548,8 @@ function confirmLoad() {
     gameMap.setView([35.0, 105.0], 4);
 
     updatePlanesPosition();
+    renderRouteTab();
+    renderAirportTab();
 
     showToast('已读档');
 }
