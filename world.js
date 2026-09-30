@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// 翼掠惊鸿 - 世界层（地图 / 机场 / 航线 / 机队 / 飞行 / 时刻表 / 动态栏）
+// 翼掠惊鸿 - 世界层（地图 / 机场 / 航线 / 机队 / 飞行 / 时刻表 / 动态栏 / tab）
 
 // ==================== 状态 ====================
 
@@ -22,6 +22,10 @@ let scheduleDropdownOpen = false;
 let planeMarkers = [];
 const flightEvents = [];
 const FLIGHT_EVENT_MAX = 100;
+
+let routePickerFrom = null;
+let routePickerTo = null;
+let routePickerDropdownOpen = null;
 
 // ==================== 弧线生成 ====================
 
@@ -102,9 +106,6 @@ function makePlaneIcon() {
 
 // ==================== 飞行位置曲线 ====================
 //
-// 输入：单程飞行中已经过的时间（分钟）
-// 输出：{ t, speed }，t 是弧线参数 0~1，speed 是当前 km/h
-//
 // 加速段（0 ~ 15min）：0 → 800 匀加速，位置二次曲线
 // 巡航段：cruiseSpeed 匀速
 // 减速段（末 15min）：800 → 0 匀减速，位置二次曲线
@@ -126,17 +127,14 @@ function calcFlightProgress(fromIata, toIata, aircraftType, elapsedMin) {
     let pos, speed;
 
     if (elapsedMin < accelTime) {
-        // 匀加速：a = accelSpeed / accelTime （每分钟）
         const a = accelSpeed / accelTime;
         pos = 0.5 * (a / 60) * elapsedMin * elapsedMin;
         speed = a * elapsedMin;
     } else if (elapsedMin < flightMin - accelTime) {
-        // 巡航
         const cruiseElapsed = elapsedMin - accelTime;
         pos = accelDist + cruiseElapsed * cruiseSpeed / 60;
         speed = cruiseSpeed;
     } else {
-        // 减速
         const decelElapsed = elapsedMin - (flightMin - accelTime);
         const a = accelSpeed / accelTime;
         const decelStartPos = D - accelDist;
@@ -457,7 +455,7 @@ function buildRouteDemandHTML(demand) {
     );
 }
 
-// ==================== 建航线 ====================
+// ==================== 建航线（地图点两下） ====================
 
 function drawRoute(from, to, silent) {
     const pts = makeArc(from, to, 60);
@@ -548,6 +546,8 @@ function confirmRoute(btn) {
         routePending = null;
 
         closeOverlay('route-overlay');
+
+        renderRouteTab();
     }, 200);
 }
 
@@ -1484,6 +1484,306 @@ function saveSchedule(btn) {
     }, 200);
 }
 
+// ==================== 航线 tab ====================
+
+function renderRouteTab() {
+    const list = document.getElementById('route-tab-list');
+    if (!list) return;
+
+    if (routes.length === 0) {
+        list.innerHTML = '<div class="fleet-empty">暂无航线，点右上角建立</div>';
+        return;
+    }
+
+    let html = '';
+    routes.forEach(function (r, idx) {
+        const fare = calcBaseFare(r.from, r.to);
+        const demandTotal = r.demand ? Math.round(r.demand.total) : 0;
+        const dist = r.demand ? Math.round(r.demand.distance) : 0;
+
+        html +=
+            '<div class="route-card" data-route-idx="' + idx + '">' +
+                '<div class="rc-top">' +
+                    '<div class="rc-name">' +
+                        r.fromName + ' ' + r.from +
+                        '<span class="rc-arrow"> → </span>' +
+                        r.toName + ' ' + r.to +
+                    '</div>' +
+                    '<span class="rc-index">' + demandTotal + ' 人次/日</span>' +
+                '</div>' +
+                '<div class="rc-info">航距 <b>' + dist + '</b> km · 票价 <b>¥' +
+                    fare.toLocaleString('en-US') + '</b></div>' +
+            '</div>';
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll('.route-card').forEach(function (card) {
+        card.onclick = function () {
+            const idx = parseInt(this.getAttribute('data-route-idx'), 10);
+            openRouteDetail(routes[idx]);
+        };
+    });
+}
+
+// ==================== 机场 tab ====================
+
+function renderAirportTab() {
+    const list = document.getElementById('airport-tab-list');
+    if (!list) return;
+
+    const sorted = AIRPORT_GCJ.slice().sort(function (a, b) {
+        return b.airportIndex - a.airportIndex;
+    });
+
+    let html = '';
+    sorted.forEach(function (a) {
+        let tags = '';
+        if (a.isHighPlateau) {
+            tags = '<div class="ac-tags"><span class="ac-tag high">高高原</span></div>';
+        } else if (a.isPlateau) {
+            tags = '<div class="ac-tags"><span class="ac-tag plateau">高原</span></div>';
+        }
+
+        html +=
+            '<div class="airport-card" data-iata="' + a.iata + '">' +
+                '<div class="ac-top">' +
+                    '<div>' +
+                        '<span class="ac-name">' + a.name + '</span>' +
+                        '<span class="ac-iata">' + a.iata + '</span>' +
+                    '</div>' +
+                    '<span class="ac-index">' + a.airportIndex.toFixed(1) + '</span>' +
+                '</div>' +
+                '<div class="ac-info">' +
+                    '<span>' + a.throughput.toLocaleString('en-US') + ' 万</span>' +
+                    '<span class="dot">·</span>' +
+                    '<span>' + a.grade + '</span>' +
+                    '<span class="dot">·</span>' +
+                    '<span>距市 <b>' + a.distance + '</b> km</span>' +
+                '</div>' +
+                tags +
+            '</div>';
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll('.airport-card').forEach(function (card) {
+        card.onclick = function () {
+            openAirportPanel(this.getAttribute('data-iata'));
+        };
+    });
+}
+
+// ==================== 航线 Picker ====================
+
+function openRoutePicker() {
+    routePickerFrom = null;
+    routePickerTo = null;
+    routePickerDropdownOpen = null;
+
+    const vf = document.getElementById('rp-from-value');
+    const vt = document.getElementById('rp-to-value');
+    vf.textContent = '请选择';
+    vf.classList.add('cs-placeholder');
+    vt.textContent = '请选择';
+    vt.classList.add('cs-placeholder');
+
+    closeRoutePickerDropdown();
+    updateRoutePickerNextBtn();
+
+    openOverlay('route-picker-overlay');
+}
+
+function closeRoutePicker() {
+    closeRoutePickerDropdown();
+    closeOverlay('route-picker-overlay');
+}
+
+function onRoutePickerOverlayClick(event) {
+    if (routePickerDropdownOpen) {
+        closeRoutePickerDropdown();
+        return;
+    }
+    if (event.target.id === 'route-picker-overlay') {
+        closeRoutePicker();
+    }
+}
+
+function toggleRoutePickerDropdown(which, event) {
+    if (event) event.stopPropagation();
+
+    if (routePickerDropdownOpen === which) {
+        closeRoutePickerDropdown();
+        return;
+    }
+
+    closeRoutePickerDropdown();
+
+    const listId = 'rp-' + which + '-list';
+    const triggerId = 'rp-' + which + '-trigger';
+    const list = document.getElementById(listId);
+    const trigger = document.getElementById(triggerId);
+
+    let html = '';
+    AIRPORT_GCJ.forEach(function (a) {
+        const cur = (which === 'from') ? routePickerFrom : routePickerTo;
+        const cls = (a.iata === cur) ? ' cs-item-selected' : '';
+        html +=
+            '<div class="cs-item' + cls + '" data-iata="' + a.iata + '">' +
+                '<span class="cs-item-name">' + a.name + '</span>' +
+                '<span class="cs-item-iata">' + a.iata + '</span>' +
+            '</div>';
+    });
+    list.innerHTML = html;
+
+    list.querySelectorAll('.cs-item').forEach(function (item) {
+        item.onclick = function (e) {
+            if (e) e.stopPropagation();
+            selectRoutePickerAirport(which, this.getAttribute('data-iata'));
+        };
+    });
+
+    list.classList.add('open');
+    trigger.classList.add('open');
+    routePickerDropdownOpen = which;
+}
+
+function closeRoutePickerDropdown() {
+    const fl = document.getElementById('rp-from-list');
+    const tl = document.getElementById('rp-to-list');
+    const ft = document.getElementById('rp-from-trigger');
+    const tt = document.getElementById('rp-to-trigger');
+    if (fl) fl.classList.remove('open');
+    if (tl) tl.classList.remove('open');
+    if (ft) ft.classList.remove('open');
+    if (tt) tt.classList.remove('open');
+    routePickerDropdownOpen = null;
+}
+
+function selectRoutePickerAirport(which, iata) {
+    const airport = AIRPORT_GCJ.find(function (a) { return a.iata === iata; });
+    if (!airport) return;
+
+    if (which === 'from') routePickerFrom = iata;
+    else routePickerTo = iata;
+
+    const valEl = document.getElementById('rp-' + which + '-value');
+    valEl.textContent = airport.name + ' ' + airport.iata;
+    valEl.classList.remove('cs-placeholder');
+
+    closeRoutePickerDropdown();
+    updateRoutePickerNextBtn();
+}
+
+function updateRoutePickerNextBtn() {
+    const btn = document.getElementById('rp-next-btn');
+    if (!btn) return;
+    const ok = routePickerFrom && routePickerTo && routePickerFrom !== routePickerTo;
+    btn.disabled = !ok;
+}
+
+function routePickerNext(btn) {
+    if (btn && btn.disabled) return;
+    if (!routePickerFrom || !routePickerTo) return;
+
+    const from = AIRPORT_GCJ.find(function (a) { return a.iata === routePickerFrom; });
+    const to = AIRPORT_GCJ.find(function (a) { return a.iata === routePickerTo; });
+    if (!from || !to) return;
+
+    const distKm = calcDistanceKm(from.lat, from.lng, to.lat, to.lng);
+    if (distKm <= 200) {
+        closeRoutePickerDropdown();
+        showToast('航线太短，无法创建');
+        return;
+    }
+
+    if (routeExists(routePickerFrom, routePickerTo)) {
+        closeRoutePickerDropdown();
+        showToast('已有该航线！');
+        return;
+    }
+
+    const demand = calcRouteDemand(routePickerFrom, routePickerTo);
+    if (demand) {
+        demand.from = routePickerFrom;
+        demand.to = routePickerTo;
+    }
+
+    document.getElementById('rt-from-name').textContent = from.name;
+    document.getElementById('rt-from-iata').textContent = from.iata;
+    document.getElementById('rt-to-name').textContent = to.name;
+    document.getElementById('rt-to-iata').textContent = to.iata;
+    document.getElementById('rt-demand').innerHTML = buildRouteDemandHTML(demand);
+
+    closeRoutePicker();
+    openOverlay('route-tab-demand-overlay');
+}
+
+function closeRouteTabDemand() {
+    closeOverlay('route-tab-demand-overlay');
+}
+
+function confirmRouteTabCreate(btn) {
+    if (btn && btn.classList.contains('pressed')) return;
+    if (btn) btn.classList.add('pressed');
+
+    setTimeout(function () {
+        if (btn) btn.classList.remove('pressed');
+
+        if (!routePickerFrom || !routePickerTo) return;
+
+        const from = AIRPORT_GCJ.find(function (a) { return a.iata === routePickerFrom; });
+        const to = AIRPORT_GCJ.find(function (a) { return a.iata === routePickerTo; });
+        if (!from || !to) return;
+
+        drawRoute(from, to);
+        renderRouteTab();
+
+        closeRouteTabDemand();
+
+        routePickerFrom = null;
+        routePickerTo = null;
+    }, 200);
+}
+
+// ==================== 返回标题彩蛋 ====================
+
+function openReturnTitle() {
+    if (!gameMap) return;
+    openOverlay('return-title-overlay');
+}
+
+function closeReturnTitle() {
+    closeOverlay('return-title-overlay');
+}
+
+function confirmReturnTitle() {
+    closeReturnTitle();
+
+    clearAllRoutes();
+    clearAllPlaneMarkers();
+
+    flightEvents.length = 0;
+    renderFlightList();
+
+    gameState.money = 1000000000;
+    gameState.fleet = [];
+
+    startTimeSystem();
+
+    document.getElementById('game-page').classList.remove('active');
+    document.getElementById('start-page').style.display = '';
+
+    document.querySelectorAll('.overlay.active').forEach(function (el) {
+        el.classList.remove('active');
+    });
+    refreshOverlayDim();
+
+    renderFleet();
+    renderRouteTab();
+
+    bgAnimating = true;
+    requestAnimationFrame(bgLoop);
+}
+
 // ==================== 全局点击：关闭下拉 ====================
 
 document.addEventListener('click', function (e) {
@@ -1500,5 +1800,27 @@ document.addEventListener('click', function (e) {
         if (trigger && trigger.contains(e.target)) return;
         if (list && list.contains(e.target)) return;
         closeScheduleDropdown();
+    }
+    if (routePickerDropdownOpen) {
+        const ft = document.getElementById('rp-from-trigger');
+        const fl = document.getElementById('rp-from-list');
+        const tt = document.getElementById('rp-to-trigger');
+        const tl = document.getElementById('rp-to-list');
+        if (ft && ft.contains(e.target)) return;
+        if (fl && fl.contains(e.target)) return;
+        if (tt && tt.contains(e.target)) return;
+        if (tl && tl.contains(e.target)) return;
+        closeRoutePickerDropdown();
+    }
+});
+
+// ==================== 初始化补丁：顶栏 logo 彩蛋 ====================
+
+document.addEventListener('DOMContentLoaded', function () {
+    const logo = document.getElementById('top-logo');
+    if (logo) {
+        logo.addEventListener('click', function () {
+            openReturnTitle();
+        });
     }
 });
