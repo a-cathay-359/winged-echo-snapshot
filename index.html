@@ -55,13 +55,13 @@
     <div id="about-page">
         <button class="back-btn" onclick="closeAbout(this)">←</button>
         <div class="about-center">
-            <div class="about-copyright">© 2026 a_cathay_359</div>
+            <div class="about-copyright">© 2026 a-cathay-359</div>
         </div>
     </div>
 
     <div id="game-page">
         <div class="top-bar">
-            <div class="top-logo">
+            <div class="top-logo" id="top-logo">
                 <svg class="top-logo-icon" width="48" height="48"><use href="#we-logo"/></svg>
                 <span>翼掠惊鸿</span>
             </div>
@@ -144,6 +144,68 @@
                                 </div>
                             </div>
                             <div class="route-demand" id="route-detail-demand"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="route-picker-overlay" class="overlay" onclick="onRoutePickerOverlayClick(event)">
+                    <div class="buy-modal">
+                        <div class="modal-header">
+                            <span>建立航线</span>
+                            <span class="modal-close" onclick="closeRoutePicker()">✕</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="picker-row">
+                                <div class="picker-field">
+                                    <label class="naming-label">出发机场</label>
+                                    <div class="custom-select">
+                                        <div class="cs-trigger" id="rp-from-trigger" onclick="toggleRoutePickerDropdown('from', event)">
+                                            <span class="cs-value cs-placeholder" id="rp-from-value">请选择</span>
+                                            <svg class="cs-arrow" viewBox="0 0 10 6"><path d="M0 0 L5 6 L10 0 Z" fill="#94a3b8"/></svg>
+                                        </div>
+                                        <div class="cs-list" id="rp-from-list"></div>
+                                    </div>
+                                </div>
+
+                                <div class="picker-arrow">→</div>
+
+                                <div class="picker-field">
+                                    <label class="naming-label">到达机场</label>
+                                    <div class="custom-select">
+                                        <div class="cs-trigger" id="rp-to-trigger" onclick="toggleRoutePickerDropdown('to', event)">
+                                            <span class="cs-value cs-placeholder" id="rp-to-value">请选择</span>
+                                            <svg class="cs-arrow" viewBox="0 0 10 6"><path d="M0 0 L5 6 L10 0 Z" fill="#94a3b8"/></svg>
+                                        </div>
+                                        <div class="cs-list" id="rp-to-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="naming-confirm" id="rp-next-btn" onclick="routePickerNext(this)" disabled>下一步</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="route-tab-demand-overlay" class="overlay" onclick="if(event.target===this) closeRouteTabDemand()">
+                    <div class="buy-modal">
+                        <div class="modal-header">
+                            <span>建立航线</span>
+                            <span class="modal-close" onclick="closeRouteTabDemand()">✕</span>
+                        </div>
+                        <div class="modal-body route-modal-body">
+                            <div class="route-info">
+                                <div class="route-ap">
+                                    <div class="route-ap-name" id="rt-from-name">—</div>
+                                    <div class="route-ap-iata" id="rt-from-iata">—</div>
+                                </div>
+                                <div class="route-arrow">→</div>
+                                <div class="route-ap">
+                                    <div class="route-ap-name" id="rt-to-name">—</div>
+                                    <div class="route-ap-iata" id="rt-to-iata">—</div>
+                                </div>
+                            </div>
+                            <div class="route-demand" id="rt-demand"></div>
+                            <button class="route-create-btn" id="rt-create-btn" onclick="confirmRouteTabCreate(this)">+ 建立</button>
                         </div>
                     </div>
                 </div>
@@ -253,6 +315,22 @@
                     </div>
                 </div>
 
+                <div id="return-title-overlay" class="overlay" onclick="if(event.target===this) closeReturnTitle()">
+                    <div class="buy-modal confirm-modal">
+                        <div class="modal-header">
+                            <span>返回标题</span>
+                            <span class="modal-close" onclick="closeReturnTitle()">✕</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="confirm-text">返回标题将丢失当前进度，未存档的内容无法恢复。确定继续？</div>
+                            <div class="confirm-actions">
+                                <button class="confirm-btn cancel" onclick="closeReturnTitle()">取消</button>
+                                <button class="confirm-btn ok" onclick="confirmReturnTitle()">确认返回</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="admin-pass-overlay" class="overlay" onclick="if(event.target===this) closeAdminPass()">
                     <div class="buy-modal admin-modal">
                         <div class="modal-header">
@@ -320,9 +398,20 @@
                     <div id="fleet-list"></div>
                 </div>
 
-                <div id="tab-route" class="panel-content"></div>
+                <div id="tab-route" class="panel-content">
+                    <div class="plane-panel-header">
+                        <span class="plane-panel-title">航线列表</span>
+                        <button class="buy-plane-btn-small" onclick="openRoutePicker()">建立航线</button>
+                    </div>
+                    <div id="route-tab-list"></div>
+                </div>
 
-                <div id="tab-airport" class="panel-content"></div>
+                <div id="tab-airport" class="panel-content">
+                    <div class="plane-panel-header">
+                        <span class="plane-panel-title">机场列表</span>
+                    </div>
+                    <div id="airport-tab-list"></div>
+                </div>
             </div>
         </div>
 
