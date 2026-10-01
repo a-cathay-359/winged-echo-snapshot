@@ -65,7 +65,6 @@
                 <svg class="top-logo-icon" width="48" height="48"><use href="#we-logo"/></svg>
                 <span>翼掠惊鸿</span>
             </div>
-            <button class="top-edit">修改</button>
             <div class="top-money">
                 <span class="money-icon">¥</span>
                 <span class="money-value" id="money-value">10.00</span>
@@ -75,7 +74,44 @@
         </div>
 
         <div class="main-body">
-            <div class="left-panel"></div>
+            <div class="left-panel">
+                <div class="lp-card">
+                    <div class="lp-logo">
+                        <svg width="44" height="44"><use href="#we-logo"/></svg>
+                    </div>
+                    <div class="lp-name" id="lp-name" onclick="openAirlineEdit()">翼掠航空</div>
+                    <div class="lp-name-en" id="lp-name-en">WINGED AIR</div>
+                    <div class="lp-code" id="lp-code">WE</div>
+                </div>
+
+                <div class="lp-section">
+                    <div class="lp-section-title">运营概况</div>
+                    <div class="lp-row">
+                        <span>机队</span>
+                        <span class="lp-val" id="lp-fleet">0 架</span>
+                    </div>
+                    <div class="lp-row">
+                        <span>航线</span>
+                        <span class="lp-val" id="lp-routes">0 条</span>
+                    </div>
+                    <div class="lp-row">
+                        <span>运营中</span>
+                        <span class="lp-val blue" id="lp-active">0 架</span>
+                    </div>
+                </div>
+
+                <div class="lp-section">
+                    <div class="lp-section-title">今日</div>
+                    <div class="lp-row">
+                        <span>航班</span>
+                        <span class="lp-val" id="lp-today-flights">0 班</span>
+                    </div>
+                    <div class="lp-row">
+                        <span>收入</span>
+                        <span class="lp-val green" id="lp-today-revenue">¥0</span>
+                    </div>
+                </div>
+            </div>
 
             <div class="main-area">
                 <div id="map"></div>
@@ -242,6 +278,32 @@
                                 </div>
 
                                 <button class="naming-confirm" id="naming-confirm-btn" onclick="confirmBuy(this)" disabled>确认购买</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="airline-edit-overlay" class="overlay" onclick="if(event.target===this) closeAirlineEdit()">
+                    <div class="buy-modal airline-modal">
+                        <div class="modal-header">
+                            <span>修改航司信息</span>
+                            <span class="modal-close" onclick="closeAirlineEdit()">✕</span>
+                        </div>
+                        <div class="modal-body">
+                            <div class="naming-form">
+                                <label class="naming-label">航司名称</label>
+                                <input type="text" id="ae-name" class="naming-input" maxlength="8" spellcheck="false" autocomplete="off">
+                                <div class="hint" id="ae-hint-name">1 ~ 8 个字</div>
+
+                                <label class="naming-label naming-label-second">英文名称（可选）</label>
+                                <input type="text" id="ae-name-en" class="naming-input" maxlength="20" spellcheck="false" autocomplete="off">
+                                <div class="hint" id="ae-hint-name-en">0 ~ 20 个字符</div>
+
+                                <label class="naming-label naming-label-second">二字码</label>
+                                <input type="text" id="ae-code" class="naming-input ae-code-input" maxlength="2" spellcheck="false" autocomplete="off">
+                                <div class="hint" id="ae-hint-code">第一位：数字或字母 · 第二位：字母</div>
+
+                                <button class="naming-confirm" id="ae-save-btn" onclick="saveAirlineEdit(this)">保存</button>
                             </div>
                         </div>
                     </div>
