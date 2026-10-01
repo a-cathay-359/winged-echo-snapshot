@@ -26,6 +26,18 @@ let gameState = {
     fleet: []
 };
 
+let airlineInfo = {
+    name: '翼掠航空',
+    nameEn: 'Winged Air',
+    code: 'WE'
+};
+
+let todayStats = {
+    date: '',
+    flights: 0,
+    revenue: 0
+};
+
 let overlayZCounter = 100;
 
 // ==================== 工具函数 ====================
@@ -67,6 +79,148 @@ function formatMoneyShort(n) {
     if (n >= 100000000) return (n / 100000000).toFixed(2) + '亿';
     if (n >= 10000) return (n / 10000).toFixed(1) + '万';
     return String(Math.round(n));
+}
+
+// ==================== 左侧面板渲染 ====================
+
+function renderAirlinePanel() {
+    const nameEl = document.getElementById('lp-name');
+    const nameEnEl = document.getElementById('lp-name-en');
+    const codeEl = document.getElementById('lp-code');
+
+    if (nameEl) nameEl.textContent = airlineInfo.name;
+    if (nameEnEl) nameEnEl.textContent = (airlineInfo.nameEn || '').toUpperCase();
+    if (codeEl) codeEl.textContent = airlineInfo.code;
+
+    const fleetEl = document.getElementById('lp-fleet');
+    const routesEl = document.getElementById('lp-routes');
+    const activeEl = document.getElementById('lp-active');
+
+    if (fleetEl) fleetEl.textContent = gameState.fleet.length + ' 架';
+    if (routesEl) routesEl.textContent = routes.length + ' 条';
+
+    const activeCount = gameState.fleet.filter(function (p) {
+        return !!p.schedule;
+    }).length;
+    if (activeEl) activeEl.textContent = activeCount + ' 架';
+
+    const todayFlightsEl = document.getElementById('lp-today-flights');
+    const todayRevenueEl = document.getElementById('lp-today-revenue');
+
+    if (todayFlightsEl) todayFlightsEl.textContent = todayStats.flights + ' 班';
+    if (todayRevenueEl) {
+        todayRevenueEl.textContent = '¥' + formatMoneyShort(todayStats.revenue);
+    }
+}
+
+function getTodayDateStr() {
+    const d = new Date(gameTimeMs);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+function checkTodayReset() {
+    const cur = getTodayDateStr();
+    if (todayStats.date !== cur) {
+        todayStats.date = cur;
+        todayStats.flights = 0;
+        todayStats.revenue = 0;
+        renderAirlinePanel();
+    }
+}
+
+function addTodayFlight(amount) {
+    checkTodayReset();
+    todayStats.flights += 1;
+    if (amount && amount > 0) {
+        todayStats.revenue += amount;
+    }
+    renderAirlinePanel();
+}
+
+// ==================== 航司信息修改 ====================
+
+function openAirlineEdit() {
+    const nameInput = document.getElementById('ae-name');
+    const nameEnInput = document.getElementById('ae-name-en');
+    const codeInput = document.getElementById('ae-code');
+
+    nameInput.value = airlineInfo.name;
+    nameEnInput.value = airlineInfo.nameEn;
+    codeInput.value = airlineInfo.code;
+
+    nameInput.classList.remove('error');
+    nameEnInput.classList.remove('error');
+    codeInput.classList.remove('error');
+    document.getElementById('ae-hint-name').classList.remove('error');
+    document.getElementById('ae-hint-name-en').classList.remove('error');
+    document.getElementById('ae-hint-code').classList.remove('error');
+
+    document.getElementById('ae-hint-name').textContent = '1 ~ 8 个字';
+    document.getElementById('ae-hint-name-en').textContent = '0 ~ 20 个字符';
+    document.getElementById('ae-hint-code').textContent = '第一位：数字或字母 · 第二位：字母';
+
+    document.getElementById('ae-save-btn').disabled = false;
+
+    openOverlay('airline-edit-overlay');
+    setTimeout(function () {
+        nameInput.focus();
+        nameInput.select();
+    }, 100);
+}
+
+function closeAirlineEdit() {
+    closeOverlay('airline-edit-overlay');
+}
+
+function validateAirlineEdit() {
+    let ok = true;
+
+    const nameInput = document.getElementById('ae-name');
+    const nameHint = document.getElementById('ae-hint-name');
+    const nameVal = nameInput.value.trim();
+
+    if (nameVal.length < 1 || nameVal.length > 8) {
+        nameInput.classList.add('error');
+        nameHint.classList.add('error');
+        nameHint.textContent = '名称需 1 ~ 8 个字';
+        ok = false;
+    } else {
+        nameInput.classList.remove('error');
+        nameHint.classList.remove('error');
+        nameHint.textContent = '1 ~ 8 个字';
+    }
+
+    const codeInput = document.getElementById('ae-code');
+    const codeHint = document.getElementById('ae-hint-code');
+    const codeVal = codeInput.value.toUpperCase();
+
+    if (!/^[0-9A-Z][A-Z]$/.test(codeVal)) {
+        codeInput.classList.add('error');
+        codeHint.classList.add('error');
+        codeHint.textContent = '格式：第一位数字或字母，第二位字母';
+        ok = false;
+    } else {
+        codeInput.classList.remove('error');
+        codeHint.classList.remove('error');
+        codeHint.textContent = '第一位：数字或字母 · 第二位：字母';
+    }
+
+    document.getElementById('ae-save-btn').disabled = !ok;
+    return ok;
+}
+
+function saveAirlineEdit(btn) {
+    if (btn && btn.disabled) return;
+    if (!validateAirlineEdit()) return;
+
+    airlineInfo.name = document.getElementById('ae-name').value.trim();
+    airlineInfo.nameEn = document.getElementById('ae-name-en').value.trim();
+    airlineInfo.code = document.getElementById('ae-code').value.toUpperCase();
+
+    closeAirlineEdit();
+    renderAirlinePanel();
+    renderFlightList();
+    showToast('航司信息已更新');
 }
 
 // ==================== 弹窗管理 ====================
@@ -279,6 +433,18 @@ function bootGame(loadData) {
                 _state: null
             };
         });
+
+        if (loadData.airline) {
+            airlineInfo.name = loadData.airline.name || airlineInfo.name;
+            airlineInfo.nameEn = loadData.airline.nameEn || '';
+            airlineInfo.code = loadData.airline.code || 'WE';
+        }
+
+        if (loadData.todayStats) {
+            todayStats.date = loadData.todayStats.date || '';
+            todayStats.flights = loadData.todayStats.flights || 0;
+            todayStats.revenue = loadData.todayStats.revenue || 0;
+        }
     }
 
     updateMoneyDisplay();
@@ -286,6 +452,7 @@ function bootGame(loadData) {
     renderFlightList();
     renderRouteTab();
     renderAirportTab();
+    renderAirlinePanel();
 
     setTimeout(function () {
         initGameMap();
@@ -308,6 +475,7 @@ function bootGame(loadData) {
         rebuildAllPlaneMarkers();
         updatePlanesPosition();
         renderRouteTab();
+        renderAirlinePanel();
     }, 100);
 }
 
@@ -403,6 +571,7 @@ function timeLoop(now) {
         gameTimeMs += realDelta * gameSpeed;
         renderTimeDisplay();
         updatePlanesPosition();
+        checkTodayReset();
     }
 
     timeLoopId = requestAnimationFrame(timeLoop);
@@ -449,7 +618,7 @@ function updateSpeedButtons() {
 // ==================== 存档系统 ====================
 
 const SAVE_KEY = 'wingedEcho.save.v1';
-const SAVE_VERSION = 3;
+const SAVE_VERSION = 4;
 
 function saveGame() {
     const data = {
@@ -457,6 +626,16 @@ function saveGame() {
         savedAt: Date.now(),
         gameTimeMs: gameTimeMs,
         money: gameState.money,
+        airline: {
+            name: airlineInfo.name,
+            nameEn: airlineInfo.nameEn,
+            code: airlineInfo.code
+        },
+        todayStats: {
+            date: todayStats.date,
+            flights: todayStats.flights,
+            revenue: todayStats.revenue
+        },
         fleet: gameState.fleet.map(function (p) {
             return {
                 name: p.name,
@@ -532,8 +711,21 @@ function confirmLoad() {
         };
     });
 
+    if (data.airline) {
+        airlineInfo.name = data.airline.name || '翼掠航空';
+        airlineInfo.nameEn = data.airline.nameEn || '';
+        airlineInfo.code = data.airline.code || 'WE';
+    }
+
+    if (data.todayStats) {
+        todayStats.date = data.todayStats.date || '';
+        todayStats.flights = data.todayStats.flights || 0;
+        todayStats.revenue = data.todayStats.revenue || 0;
+    }
+
     updateMoneyDisplay();
     renderFleet();
+    renderAirlinePanel();
 
     clearAllRoutes();
     (data.routes || []).forEach(function (r) {
@@ -550,6 +742,7 @@ function confirmLoad() {
     updatePlanesPosition();
     renderRouteTab();
     renderAirportTab();
+    renderFlightList();
 
     showToast('已读档');
 }
@@ -679,6 +872,18 @@ function boot() {
         initAdminTrigger();
     } catch (e) {
         console.error('调试触发器初始化失败:', e);
+    }
+
+    const aeName = document.getElementById('ae-name');
+    const aeNameEn = document.getElementById('ae-name-en');
+    const aeCode = document.getElementById('ae-code');
+    if (aeName) aeName.addEventListener('input', validateAirlineEdit);
+    if (aeNameEn) aeNameEn.addEventListener('input', function () {});
+    if (aeCode) {
+        aeCode.addEventListener('input', function () {
+            this.value = this.value.toUpperCase();
+            validateAirlineEdit();
+        });
     }
 
     window.addEventListener('resize', function () {
