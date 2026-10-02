@@ -279,21 +279,14 @@ const AIRPORT_GCJ = AIRPORT_DATA.map(function (a) {
 });
 
 // ==================== 飞行时长算法 ====================
-//
-// 加速段（15min）：0 → 800 km/h 匀加速，走 100km
-// 巡航段：cruiseSpeed，剩余距离
-// 减速段（15min）：800 → 0 匀减速，走 100km
-//
-// 单趟飞行时长 = 30min + (距离 - 200) / cruiseSpeed × 60
-// 距离 ≤ 200km 时，物理上飞不起来（无巡航段）
 
 const GRADE_TURN = { "4F": 30, "4E": 25, "4D": 20, "4C": 20 };
 
 const FLIGHT_CONSTANTS = {
-    ACCEL_TIME: 15,      // 分钟
-    ACCEL_DIST: 100,     // 公里
-    ACCEL_SPEED: 800,    // km/h
-    MIN_DISTANCE: 200    // 最小可飞距离
+    ACCEL_TIME: 15,
+    ACCEL_DIST: 100,
+    ACCEL_SPEED: 800,
+    MIN_DISTANCE: 200
 };
 
 function getTurnTime(grade) {
@@ -325,6 +318,62 @@ function calcFlightDuration(iataA, iataB, aircraftType) {
         roundMin: roundMin,
         cruiseSpeed: cruiseSpeed,
         cruiseDist: cruiseDist
+    };
+}
+
+// ==================== 航线成本算法 ====================
+//
+// 航路费：按 MTOW 档位 × 距离（每端起降各减 20 公里）
+// 起降费：按 MTOW 档位（起飞 + 降落 = ×2）
+// 燃油费：cruiseFuelBurn × 0.8 kg/km × 6000 元/吨 × 距离
+
+const FUEL_PRICE_PER_TON = 6000;
+const FUEL_DENSITY = 0.8;
+
+// 航路费（单程）
+function calcEnrouteFee(aircraftType, distanceKm) {
+    const ac = getAircraftData(aircraftType);
+    const t = ac.mtow / 1000;
+    const dist = Math.max(0, distanceKm - 20);
+
+    if (t <= 25) return 1.5 * dist;
+    if (t <= 50) return 3.0 * dist;
+    if (t <= 100) return 3.4 * dist;
+    if (t <= 200) return 3.8 * dist;
+    return 233 * dist / 100 * Math.sqrt(t / 50);
+}
+
+// 起降费（单次起飞 或 单次降落）
+function calcLandingFee(aircraftType) {
+    const ac = getAircraftData(aircraftType);
+    const t = ac.mtow / 1000;
+
+    if (t <= 25) return 990;
+    if (t <= 50) return 1060;
+    if (t <= 100) return 1060 + 21 * (t - 50);
+    if (t <= 200) return 1920 + 23 * (t - 100);
+    return 3820 + 27 * (t - 200);
+}
+
+// 燃油费（单程）
+function calcFuelCost(aircraftType, distanceKm) {
+    const ac = getAircraftData(aircraftType);
+    const kgPerKm = ac.cruiseFuelBurn * FUEL_DENSITY;
+    const yuanPerKm = kgPerKm / 1000 * FUEL_PRICE_PER_TON;
+    return yuanPerKm * distanceKm;
+}
+
+// 单程航段总成本
+function calcSegmentCost(aircraftType, distanceKm) {
+    const enroute = calcEnrouteFee(aircraftType, distanceKm);
+    const landing = calcLandingFee(aircraftType) * 2;  // 起飞 + 降落
+    const fuel = calcFuelCost(aircraftType, distanceKm);
+
+    return {
+        enroute: enroute,
+        landing: landing,
+        fuel: fuel,
+        total: enroute + landing + fuel
     };
 }
 
