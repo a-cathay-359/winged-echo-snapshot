@@ -1044,7 +1044,7 @@ function updatePlanesPosition() {
     });
 }
 
-// ==================== 段推进 & 收入 ====================
+// ==================== 段推进 & 收入/成本 ====================
 
 function handleSegAdvance(plane, absSeg) {
     if (!plane._state) {
@@ -1111,13 +1111,19 @@ function emitSegmentStart(plane, absSeg) {
     } else if (local === 1) {
         const flightNo = getFlightNo(sched, roundIdx, false);
         const hasRoute = routeExists(sched.from, sched.to);
-        let amount = 0;
+
+        let revenue = 0;
         if (hasRoute) {
             const fare = calcBaseFare(sched.from, sched.to);
-            amount = ac.seatCapacity * fare;
-            gameState.money += amount;
-            updateMoneyDisplay();
+            revenue = ac.seatCapacity * fare;
         }
+
+        const cost = calcSegmentCost(plane.type, dur.distance);
+        const net = revenue - cost.total;
+
+        gameState.money += net;
+        updateMoneyDisplay();
+
         pushFlightEvent({
             time: timeStr,
             flightNo: flightNo,
@@ -1125,9 +1131,10 @@ function emitSegmentStart(plane, absSeg) {
             from: sched.from,
             to: sched.to,
             type: 'arr',
-            amount: amount
+            amount: revenue,
+            cost: cost.total
         });
-        addTodayFlight(amount);
+        addTodayFlight(revenue);
 
     } else if (local === 2) {
         const flightNo = getFlightNo(sched, roundIdx, true);
@@ -1145,13 +1152,19 @@ function emitSegmentStart(plane, absSeg) {
     } else if (local === 3) {
         const flightNo = getFlightNo(sched, roundIdx, true);
         const reverseExists = routeExists(sched.to, sched.from);
-        let amount = 0;
+
+        let revenue = 0;
         if (reverseExists) {
             const fare = calcBaseFare(sched.to, sched.from);
-            amount = ac.seatCapacity * fare;
-            gameState.money += amount;
-            updateMoneyDisplay();
+            revenue = ac.seatCapacity * fare;
         }
+
+        const cost = calcSegmentCost(plane.type, dur.distance);
+        const net = revenue - cost.total;
+
+        gameState.money += net;
+        updateMoneyDisplay();
+
         pushFlightEvent({
             time: timeStr,
             flightNo: flightNo,
@@ -1159,10 +1172,11 @@ function emitSegmentStart(plane, absSeg) {
             from: sched.to,
             to: sched.from,
             type: 'arr',
-            amount: amount,
+            amount: revenue,
+            cost: cost.total,
             empty: !reverseExists
         });
-        addTodayFlight(amount);
+        addTodayFlight(revenue);
     }
 }
 
@@ -1199,7 +1213,14 @@ function renderFlightList() {
         let amountStr = '';
         if (e.amount && e.amount > 0) {
             amountStr = '<span class="fb-amount">+¥' + formatMoneyShort(e.amount) + '</span>';
-        } else if (e.empty) {
+        }
+
+        let costStr = '';
+        if (e.cost && e.cost > 0) {
+            costStr = '<span class="fb-cost">-¥' + formatMoneyShort(e.cost) + '</span>';
+        }
+
+        if (e.empty && !e.amount) {
             amountStr = '<span class="fb-empty-tag">空飞</span>';
         }
 
@@ -1213,6 +1234,7 @@ function renderFlightList() {
                 '<span class="fb-route">' + e.from + '→' + e.to + '</span>' +
                 '<span class="fb-tag ' + tagCls + '">' + tagText + '</span>' +
                 amountStr +
+                costStr +
             '</div>';
     });
     list.innerHTML = html;
