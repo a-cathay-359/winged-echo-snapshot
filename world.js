@@ -361,6 +361,18 @@ function handleAirportClick(airport) {
         }
         document.getElementById('route-demand').innerHTML = buildRouteDemandHTML(demand);
 
+        const openFee = calcRouteOpenFee(distKm);
+        const createBtn = document.getElementById('route-create-btn');
+        if (createBtn) {
+            if (gameState.money >= openFee) {
+                createBtn.disabled = false;
+                createBtn.textContent = '+ 建立';
+            } else {
+                createBtn.disabled = true;
+                createBtn.textContent = '资金不足';
+            }
+        }
+
         openOverlay('route-overlay');
         return;
     }
@@ -452,11 +464,16 @@ function buildRouteDemandHTML(demand) {
     if (!demand) return '';
 
     const fare = calcBaseFare(demand.from, demand.to);
+    const openFee = calcRouteOpenFee(demand.distance);
 
     return (
         '<div class="route-fare">' +
             '<div class="route-fare-label">基准票价</div>' +
             '<div class="route-fare-value">¥ ' + fare.toLocaleString('en-US') + '</div>' +
+        '</div>' +
+        '<div class="route-open-fee">' +
+            '<div class="route-open-fee-label">航线开通费</div>' +
+            '<div class="route-open-fee-value">¥ ' + openFee.toLocaleString('en-US') + '</div>' +
         '</div>' +
         '<div class="route-demand-grid">' +
             '<div class="rd-item">' +
@@ -558,6 +575,7 @@ function closeRouteModal() {
 }
 
 function confirmRoute(btn) {
+    if (btn.disabled) return;
     if (btn.classList.contains('pressed')) return;
     btn.classList.add('pressed');
 
@@ -568,6 +586,17 @@ function confirmRoute(btn) {
 
         const from = routePending.from;
         const to = routePending.to;
+
+        const distKm = calcDistanceKm(from.lat, from.lng, to.lat, to.lng);
+        const openFee = calcRouteOpenFee(distKm);
+
+        if (gameState.money < openFee) {
+            showToast('资金不足');
+            return;
+        }
+
+        gameState.money -= openFee;
+        updateMoneyDisplay();
 
         drawRoute(from, to);
 
@@ -1845,6 +1874,18 @@ function routePickerNext(btn) {
     document.getElementById('rt-to-iata').textContent = to.iata;
     document.getElementById('rt-demand').innerHTML = buildRouteDemandHTML(demand);
 
+    const openFee = calcRouteOpenFee(distKm);
+    const createBtn = document.getElementById('rt-create-btn');
+    if (createBtn) {
+        if (gameState.money >= openFee) {
+            createBtn.disabled = false;
+            createBtn.textContent = '+ 建立';
+        } else {
+            createBtn.disabled = true;
+            createBtn.textContent = '资金不足';
+        }
+    }
+
     closeRoutePicker();
     openOverlay('route-tab-demand-overlay');
 }
@@ -1854,6 +1895,7 @@ function closeRouteTabDemand() {
 }
 
 function confirmRouteTabCreate(btn) {
+    if (btn && btn.disabled) return;
     if (btn && btn.classList.contains('pressed')) return;
     if (btn) btn.classList.add('pressed');
 
@@ -1865,6 +1907,17 @@ function confirmRouteTabCreate(btn) {
         const from = AIRPORT_GCJ.find(function (a) { return a.iata === routePickerFrom; });
         const to = AIRPORT_GCJ.find(function (a) { return a.iata === routePickerTo; });
         if (!from || !to) return;
+
+        const distKm = calcDistanceKm(from.lat, from.lng, to.lat, to.lng);
+        const openFee = calcRouteOpenFee(distKm);
+
+        if (gameState.money < openFee) {
+            showToast('资金不足');
+            return;
+        }
+
+        gameState.money -= openFee;
+        updateMoneyDisplay();
 
         drawRoute(from, to);
         renderRouteTab();
