@@ -1847,3 +1847,11 @@ body {
     .tab { font-size: 12px; }
     .panel-content { padding: 10px; }
 }
+/* ========== 动态栏成本 ========== */
+.fb-cost {
+    color: #dc2626;
+    font-weight: 600;
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    font-size: 11px;
+    flex-shrink: 0;
+}
