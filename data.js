@@ -109,7 +109,13 @@ const AIRPORT_DATA = [
       throughput: 2465, grade: "4E", distance: 33,   isPlateau: false, isHighPlateau: false },
 
     { iata: "LXA", name: "拉萨贡嘎", city: "拉萨", lat: 29.2978, lng: 90.9119,
-      throughput: 628, grade: "4E", distance: 60,   isPlateau: true,  isHighPlateau: true }
+      throughput: 628, grade: "4E", distance: 60,   isPlateau: true,  isHighPlateau: true },
+
+    { iata: "PKX", name: "北京大兴", city: "北京", lat: 39.5098, lng: 116.4107,
+      throughput: 5361, grade: "4F", distance: 46,   isPlateau: false, isHighPlateau: false },
+
+    { iata: "SHA", name: "上海虹桥", city: "上海", lat: 31.1979, lng: 121.3363,
+      throughput: 5015, grade: "4E", distance: 13,   isPlateau: false, isHighPlateau: false }
 ];
 
 // ==================== 城市数据 ====================
@@ -322,15 +328,10 @@ function calcFlightDuration(iataA, iataB, aircraftType) {
 }
 
 // ==================== 航线成本算法 ====================
-//
-// 航路费：按 MTOW 档位 × 距离（每端起降各减 20 公里）
-// 起降费：按 MTOW 档位（起飞 + 降落 = ×2）
-// 燃油费：cruiseFuelBurn × 0.8 kg/km × 6000 元/吨 × 距离
 
 const FUEL_PRICE_PER_TON = 6000;
 const FUEL_DENSITY = 0.8;
 
-// 航路费（单程）
 function calcEnrouteFee(aircraftType, distanceKm) {
     const ac = getAircraftData(aircraftType);
     const t = ac.mtow / 1000;
@@ -343,7 +344,6 @@ function calcEnrouteFee(aircraftType, distanceKm) {
     return 233 * dist / 100 * Math.sqrt(t / 50);
 }
 
-// 起降费（单次起飞 或 单次降落）
 function calcLandingFee(aircraftType) {
     const ac = getAircraftData(aircraftType);
     const t = ac.mtow / 1000;
@@ -355,7 +355,6 @@ function calcLandingFee(aircraftType) {
     return 3820 + 27 * (t - 200);
 }
 
-// 燃油费（单程）
 function calcFuelCost(aircraftType, distanceKm) {
     const ac = getAircraftData(aircraftType);
     const kgPerKm = ac.cruiseFuelBurn * FUEL_DENSITY;
@@ -363,10 +362,9 @@ function calcFuelCost(aircraftType, distanceKm) {
     return yuanPerKm * distanceKm;
 }
 
-// 单程航段总成本
 function calcSegmentCost(aircraftType, distanceKm) {
     const enroute = calcEnrouteFee(aircraftType, distanceKm);
-    const landing = calcLandingFee(aircraftType) * 2;  // 起飞 + 降落
+    const landing = calcLandingFee(aircraftType) * 2;
     const fuel = calcFuelCost(aircraftType, distanceKm);
 
     return {
@@ -375,6 +373,14 @@ function calcSegmentCost(aircraftType, distanceKm) {
         fuel: fuel,
         total: enroute + landing + fuel
     };
+}
+
+// ==================== 航线开通费算法 ====================
+
+const ROUTE_OPEN_FEE_PER_KM = 8500;
+
+function calcRouteOpenFee(distanceKm) {
+    return Math.round(distanceKm * ROUTE_OPEN_FEE_PER_KM);
 }
 
 // ==================== 启动页背景航线 ====================
